@@ -33,6 +33,9 @@ const agent = new Agent({
 
 
 //AI Summary of most up to date transactions from a Wallet Addresse 
+summarizeTokenTransactions(walletAddress)
+  .then(response => console.log(response))
+  .catch(error => console.error(error));
 
 
 
