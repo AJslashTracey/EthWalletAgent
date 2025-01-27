@@ -7,25 +7,10 @@ dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
     const apiKey = process.env.ETHERSCAN_API_KEY;
-    if (!apiKey) {
-        throw new Error('ETHERSCAN_API_KEY is not configured');
-    }
-
-    if (!walletAddress) {
-        throw new Error('Wallet address is required');
-    }
-
     const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
     const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
-    
     try {
         const response = await axios.get(etherscanUrl);
-        
-        // Check Etherscan API response status
-        if (response.data.status === '0') {
-            throw new Error(`Etherscan API Error: ${response.data.message || 'Unknown error'}`);
-        }
-
         const transactions = response.data.result;
         if (!transactions || transactions.length === 0) return { chatGPTResponse: "No transactions found.", UrlToAccount: urlToWallet };
         const recentTransactions = transactions.map(tx => ({
@@ -59,8 +44,7 @@ async function summarizeTokenTransactions(walletAddress) {
         });
         return { chatGPTResponse: chatGPTResponse.choices[0].message.content, UrlToAccount: urlToWallet };
     } catch (error) {
-        console.error('Error in summarizeTokenTransactions:', error);
-        throw new Error(`Failed to fetch token transactions: ${error.message}`);
+        return { chatGPTResponse: `Error: ${error.message}`, UrlToAccount: urlToWallet };
     }
 }
 
