@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 export { summarizeTokenTransactions };
 
 
+
 dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
@@ -33,7 +34,7 @@ async function summarizeTokenTransactions(walletAddress) {
                 contractAddress: tx.contractAddress
             });
         });
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = new OpenAI({ apiKey: "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" });
         const chatGPTResponse = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
@@ -49,7 +50,3 @@ async function summarizeTokenTransactions(walletAddress) {
     }
 }
 
-(async () => {
-    const result = await summarizeTokenTransactions("0x6dd63e4dd6201b20bc754b93b07de351ba053fd2");
-    console.log(result);
-})();

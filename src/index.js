@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Scraper } from '@the-convocation/twitter-scraper';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-export default summarizeTokenTransactions;
+import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 
 
 
@@ -32,90 +32,78 @@ const agent = new Agent({
 
 
 
-//AI Summary of most up to date transactions from a Wallet Addresse 
-summarizeTokenTransactions(walletAddress)
-  .then(response => console.log(response))
-  .catch(error => console.error(error));
-
-
 
 
 
 agent.addCapabilities([
     {
-      name: 'getLatestTokenTransactions',
-      description: 'Fetches and analyzes token transactions from Etherscan for a given wallet to determine inflow/outflow summary.',
+      name: 'summarizeEthTransactions',
+      description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
+      // We only require 'walletAddress' in our schema
       schema: z.object({
-        walletAddress: z.string().min(1, "A valid wallet address is required"),
-        limit: z.number().optional()
+        walletAddress: z.string().min(1, "A valid wallet address is required")
       }),
       async run({ args, action }) {
         try {
-          // Validate task context
+          // Validate task context if you’re using OpenServ's task-based system
           if (!action?.workspace?.id || !action?.task?.id) {
             throw new Error('Task context required');
           }
   
-          // Update task status and log
+          // (Optional) Update task status and add logs for your own tracking
           await agent.updateTaskStatus({
             workspaceId: action.workspace.id,
             taskId: action.task.id,
             status: 'in-progress'
           });
-  
           await agent.addLogToTask({
             workspaceId: action.workspace.id,
             taskId: action.task.id,
             severity: 'info',
             type: 'text',
-            body: `Fetching up to ${args.limit || 20} transactions for wallet: ${args.walletAddress}`
+            body: `Starting token transaction summary for wallet: ${args.walletAddress}`
           });
   
-          // Fetch the latest token transactions
-          const tokenTransactions = await getLatestTokenTransactions(args.walletAddress, args.limit || 20);
+          // Call your imported function to summarize token transactions
+          const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
   
-          if (!tokenTransactions || tokenTransactions.length === 0) {
-            throw new Error('No token transactions found for this address.');
-          }
-  
-          // Summarize inflow/outflow
-          const tokenSummary = calculateTokenSummary(tokenTransactions);
-  
-          // Build final result
+          // Build final analysis object
           const analysis = {
             success: true,
             walletAddress: args.walletAddress,
-            transactionCount: tokenTransactions.length,
-            tokenSummary,
+            // The function returns a GPT summary (chatGPTResponse) and a link (UrlToAccount)
+            summary: chatGPTResponse,
+            link: UrlToAccount,
             timestamp: new Date().toISOString()
           };
   
-          // Complete task with required fields
+          // Complete the task and include results (if using an OpenServ-like flow)
           await agent.completeTask({
             workspaceId: action.workspace.id,
             taskId: action.task.id,
             output: JSON.stringify({
               newMessages: [
-                `Successfully analyzed ${tokenTransactions.length} transactions for ${args.walletAddress}`
+                `Successfully analyzed transactions for ${args.walletAddress}`
               ],
               outputToolCallId: action.task.id,
               result: analysis
             })
           });
   
-          // Return final response
+          // Also return the result
           return JSON.stringify({
             newMessages: [
-              `Successfully analyzed ${tokenTransactions.length} transactions for ${args.walletAddress}`
+              `Successfully analyzed transactions for ${args.walletAddress}`
             ],
             outputToolCallId: action.task.id,
             result: analysis
           });
         } catch (error) {
+          // If something goes wrong, return the error
           const errorResponse = {
             newMessages: [error.message || 'An unknown error occurred'],
-            outputToolCallId: action.task.id,
-            error: error.message || 'Failed to analyze token transactions'
+            outputToolCallId: action.task?.id,
+            error: error.message || 'Failed to summarize token transactions'
           };
   
           if (action?.workspace?.id && action?.task?.id) {
@@ -124,7 +112,6 @@ agent.addCapabilities([
               taskId: action.task.id,
               status: 'error'
             });
-  
             await agent.addLogToTask({
               workspaceId: action.workspace.id,
               taskId: action.task.id,
@@ -139,10 +126,12 @@ agent.addCapabilities([
       }
     }
   ]);
-
-// Start the agent on the specified port
-agent.start({ port: process.env.PORT || 7378 })
+  
+  // Finally, start the agent
+  agent.start({ port: process.env.PORT || 7378 })
     .then(() => {
-        console.log(`Agent running on port ${process.env.PORT || 7378}`);
+      console.log(`Agent running on port ${process.env.PORT || 7378}`);
     })
-    .catch(error => console.error("Error starting agent:", error.message));
+    .catch(error => {
+      console.error("Error starting agent:", error.message);
+    });
