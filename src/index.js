@@ -1,13 +1,7 @@
-import axios from "axios";
 import { Agent } from '@openserv-labs/sdk';
 import { z } from 'zod';
-import { Scraper } from '@the-convocation/twitter-scraper';
 import dotenv from 'dotenv';
-import OpenAI from 'openai';
 import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
-
-
-
 
 
 dotenv.config();
@@ -25,7 +19,7 @@ const agent = new Agent({
        - Major wallet activity
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
-    apiKey: "0f1490d7300a4dc59b9d033db16ed761"
+    apiKey: process.env.OPENSERV_API_KEY,
 });
 
 

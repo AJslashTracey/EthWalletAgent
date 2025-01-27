@@ -3,12 +3,10 @@ import OpenAI from "openai";
 import dotenv from "dotenv";
 export { summarizeTokenTransactions };
 
-
-
 dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
-    const apiKey = 'UVV9W98IGNG6DWGTV4DDWJBUWQX6644EM9';
+    const apiKey = process.env.ETHERSCAN_API_KEY;
     const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
     const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
     try {
@@ -34,7 +32,7 @@ async function summarizeTokenTransactions(walletAddress) {
                 contractAddress: tx.contractAddress
             });
         });
-        const openai = new OpenAI({ apiKey: "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" });
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         const chatGPTResponse = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
