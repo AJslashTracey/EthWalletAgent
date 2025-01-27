@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { Scraper } from '@the-convocation/twitter-scraper';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+export default summarizeTokenTransactions;
+
+
+
 
 
 dotenv.config();
@@ -28,63 +32,9 @@ const agent = new Agent({
 
 
 
-// Initialize the agent with proper system prompt
+//AI Summary of most up to date transactions from a Wallet Addresse 
 
 
-
-
-let dataResult;
-
-async function getLatestTokenTransactions(walletAddress, limit = 20) {
-    const apiKey = 'UVV9W98IGNG6DWGTV4DDWJBUWQX6644EM9';
-    const url = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
-
-    try {
-        const response = await axios.get(url);
-        const tokenTransactions = response.data.result;
-        dataResult = tokenTransactions;
-
-        if (!tokenTransactions || tokenTransactions.length === 0) {
-            console.log('No token transactions found for this address.');
-            return;
-        }
-
-        // Process token transactions to calculate total movement
-        const tokenSummary = calculateTokenSummary(tokenTransactions);
-
-        // Output the summary as JSON
-        console.log("Token Summary:");
-        console.log(JSON.stringify(tokenSummary, null, 2));
-
-    } catch (error) {
-        console.error('Error fetching token transactions:', error.message, error.response?.data);
-    }
-}
-
-function calculateTokenSummary(transactions) {
-    const tokenSummary = {};
-
-    transactions.forEach(tx => {
-        const tokenName = tx.tokenName;
-        const value = parseFloat(tx.value) / Math.pow(10, tx.tokenDecimal); // Adjust for decimals
-        const isOutflow = tx.from.toLowerCase() === '0xc07fa1e6c0950bee4900d2966e16ad1439d6f39c'; // Replace with your wallet address in lowercase
-        const direction = isOutflow ? 'Outflow' : 'Inflow';
-
-        if (!tokenSummary[tokenName]) {
-            tokenSummary[tokenName] = {
-                name: tokenName,
-                totalMove: 0,
-                outInflow: ''
-            };
-        }
-
-        tokenSummary[tokenName].totalMove += value;
-        tokenSummary[tokenName].outInflow = direction;
-    });
-
-    // Convert summary to array of objects
-    return Object.values(tokenSummary);
-}
 
 
 
