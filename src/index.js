@@ -21,7 +21,7 @@ const agent = new Agent({
        - Major wallet activity
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
-    apiKey: "25ef55fac51746f39a119fa7950babcf"
+    apiKey: "0f1490d7300a4dc59b9d033db16ed761"
 });
 
 
