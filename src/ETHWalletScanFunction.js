@@ -31,7 +31,8 @@ async function summarizeTokenTransactions(walletAddress) {
                 totalMove: tx.value,
                 outInflow: tx.direction,
                 timestamp: tx.timestamp,
-                contractAddress: tx.contractAddress
+                contractAddress: tx.contractAddress,
+                tokenName: tx.tokenName // Added tokenName here
             });
         });
         const openai = new OpenAI({ apiKey: "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" });
@@ -44,9 +45,14 @@ async function summarizeTokenTransactions(walletAddress) {
             max_tokens: 1000,
             temperature: 1
         });
-        return { chatGPTResponse: chatGPTResponse.choices[0].message.content, UrlToAccount: urlToWallet };
+        return { chatGPTResponse: chatGPTResponse.choices[0].message.content };
     } catch (error) {
         return { chatGPTResponse: `Error: ${error.message}`, UrlToAccount: urlToWallet };
     }
 }
 
+
+(async () => {
+    const result = await summarizeTokenTransactions("0x6dd63e4dd6201b20bc754b93b07de351ba053fd2");
+    console.log(result);
+})();
