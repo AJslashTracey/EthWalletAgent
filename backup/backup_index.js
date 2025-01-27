@@ -24,12 +24,11 @@ const agent = new Agent({
 
 agent.addCapabilities([
     {
-      name: 'summarizeEthTransactions', // Match the name used in the platform
+      name: 'summarizeEthTransactions',
       description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
+      // We only require 'walletAddress' in our schema
       schema: z.object({
-        walletAddress: z.string()
-          .regex(/^0x[a-fA-F0-9]{40}$/, 'Must be a valid Ethereum address')
-          .transform(addr => addr.toLowerCase()) // Normalize address to lowercase
+        walletAddress: z.string().min(1, "A valid wallet address is required")
       }),
       async run({ args, action }) {
         try {
