@@ -20,25 +20,28 @@ const agent = new Agent({
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
     apiKey: process.env.OPENSERV_API_KEY,
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    onError: (error, context) => {
+        console.error('Agent error:', error.message, context);
+    }
 });
-
-
-
-
-
-
-
 
 agent.addCapabilities([
     {
       name: 'summarizeEthTransactions',
       description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
-      // We only require 'walletAddress' in our schema
       schema: z.object({
-        walletAddress: z.string().min(1, "A valid wallet address is required")
+        walletAddress: z.string().min(42, "Ethereum address must be 42 characters").max(42)
       }),
       async run({ args, action }) {
         try {
+          console.log('Received request for wallet:', args.walletAddress); // Add logging
+          
+          // Validate wallet address format before proceeding
+          if (!/^0x[a-fA-F0-9]{40}$/.test(args.walletAddress)) {
+            throw new Error('Invalid Ethereum address format');
+          }
+
           // Validate task context if you’re using OpenServ's task-based system
           if (!action?.workspace?.id || !action?.task?.id) {
             throw new Error('Task context required');
@@ -60,6 +63,7 @@ agent.addCapabilities([
   
           // Call your imported function to summarize token transactions
           const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
+          console.log('API response received:', { chatGPTResponse, UrlToAccount }); // Add logging
   
           // Build final analysis object
           const analysis = {
@@ -93,6 +97,7 @@ agent.addCapabilities([
             result: analysis
           });
         } catch (error) {
+          console.error('Error in summarizeEthTransactions:', error); // Add detailed error logging
           // If something goes wrong, return the error
           const errorResponse = {
             newMessages: [error.message || 'An unknown error occurred'],
@@ -119,13 +124,14 @@ agent.addCapabilities([
         }
       }
     }
-  ]);
-  
-  // Finally, start the agent
-  agent.start({ port: process.env.PORT || 7378 })
-    .then(() => {
-      console.log(`Agent running on port ${process.env.PORT || 7378}`);
-    })
-    .catch(error => {
-      console.error("Error starting agent:", error.message);
-    });
+]);
+
+// Finally, start the agent
+agent.start()  // The port will be handled by the default value (7378)
+.then(() => {
+    console.log(`Agent running on port ${process.env.PORT || 7378}`);
+})
+.catch(error => {
+    console.error("Error starting agent:", error);
+    process.exit(1);
+});

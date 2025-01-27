@@ -7,6 +7,12 @@ dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
     const apiKey = process.env.ETHERSCAN_API_KEY;
+    
+    // Validate Ethereum address format
+    if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        throw new Error('Invalid Ethereum wallet address format. Must be 42 characters starting with 0x');
+    }
+
     if (!apiKey) {
         throw new Error('ETHERSCAN_API_KEY is not configured');
     }
