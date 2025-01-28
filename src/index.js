@@ -20,8 +20,10 @@ const agent = new Agent({
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
     apiKey: process.env.OPENSERV_API_KEY,
+    port: process.env.PORT || 8080
 });
 
+// Modify the capability to handle both direct calls and task-based calls
 agent.addCapability({
     name: 'summarizeEthTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -30,7 +32,18 @@ agent.addCapability({
     }),
     async run({ args, action }) {
         try {
-            // Validate task context
+            let result;
+            const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
+            
+            const analysis = {
+                success: true,
+                walletAddress: args.walletAddress,
+                summary: chatGPTResponse,
+                link: UrlToAccount,
+                timestamp: new Date().toISOString()
+            };
+
+            // Handle task-based execution
             if (action?.workspace?.id && action?.task?.id) {
                 await agent.updateTaskStatus({
                     workspaceId: action.workspace.id,
@@ -43,34 +56,23 @@ agent.addCapability({
                     taskId: action.task.id,
                     severity: 'info',
                     type: 'text',
-                    body: `Starting analysis for wallet: ${args.walletAddress}`
+                    body: `Analysis completed for wallet: ${args.walletAddress}`
                 });
-            }
 
-            // Get the transaction data
-            const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
-
-            // Build the analysis result
-            const analysis = {
-                success: true,
-                walletAddress: args.walletAddress,
-                summary: chatGPTResponse,
-                link: UrlToAccount,
-                timestamp: new Date().toISOString()
-            };
-
-            // If we have task context, complete the task
-            if (action?.workspace?.id && action?.task?.id) {
                 await agent.completeTask({
                     workspaceId: action.workspace.id,
                     taskId: action.task.id,
                     output: JSON.stringify(analysis)
                 });
+
+                result = { taskCompleted: true, ...analysis };
+            } else {
+                // Handle direct API calls
+                result = analysis;
             }
 
-            return JSON.stringify(analysis);
+            return JSON.stringify(result);
         } catch (error) {
-            // If we have task context, handle the error appropriately
             if (action?.workspace?.id && action?.task?.id) {
                 await agent.requestHumanAssistance({
                     workspaceId: action.workspace.id,
@@ -84,11 +86,12 @@ agent.addCapability({
     }
 });
 
-// Finally, start the agent
+// Start the agent with explicit error handling
 agent.start()
     .then(() => {
-        console.log(`Agent running on port ${process.env.PORT || 7378}`);
+        console.log(`Agent running on port ${process.env.PORT || 8080}`);
     })
     .catch(error => {
         console.error("Error starting agent:", error.message);
+        process.exit(1); // Exit on startup error
     });
