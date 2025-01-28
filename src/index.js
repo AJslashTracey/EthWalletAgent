@@ -13,8 +13,25 @@ for (const envVar of requiredEnvVars) {
     }
 }
 
+class EthWalletAgent extends Agent {
+    constructor(options) {
+        super(options);
+        this.setupCustomRoutes();
+    }
+
+    setupCustomRoutes() {
+        // Add middleware to handle both /tools and //tools paths
+        this.app.use((req, res, next) => {
+            if (req.path.startsWith('//')) {
+                req.url = req.url.replace('//', '/');
+            }
+            next();
+        });
+    }
+}
+
 //Agent config
-const agent = new Agent({
+const agent = new EthWalletAgent({
     systemPrompt: `You are a specialized crypto market analysis agent that:
     1. Analyzes token transactions fetched from wallet addresses using the API.
        - Identifies inflow and outflow transactions for tokens.
