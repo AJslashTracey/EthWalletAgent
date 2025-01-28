@@ -30,16 +30,55 @@ agent.addCapability({
     }),
     async run({ args, action }) {
         try {
+            // Validate task context
+            if (action?.workspace?.id && action?.task?.id) {
+                await agent.updateTaskStatus({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    status: 'in-progress'
+                });
+
+                await agent.addLogToTask({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    severity: 'info',
+                    type: 'text',
+                    body: `Starting analysis for wallet: ${args.walletAddress}`
+                });
+            }
+
+            // Get the transaction data
             const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
-            
-            return JSON.stringify({
+
+            // Build the analysis result
+            const analysis = {
                 success: true,
                 walletAddress: args.walletAddress,
                 summary: chatGPTResponse,
                 link: UrlToAccount,
                 timestamp: new Date().toISOString()
-            });
+            };
+
+            // If we have task context, complete the task
+            if (action?.workspace?.id && action?.task?.id) {
+                await agent.completeTask({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    output: JSON.stringify(analysis)
+                });
+            }
+
+            return JSON.stringify(analysis);
         } catch (error) {
+            // If we have task context, handle the error appropriately
+            if (action?.workspace?.id && action?.task?.id) {
+                await agent.requestHumanAssistance({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    type: 'text',
+                    question: `Error analyzing wallet ${args.walletAddress}: ${error.message}. Please verify the wallet address and try again.`
+                });
+            }
             throw new Error(`Failed to summarize token transactions: ${error.message}`);
         }
     }
