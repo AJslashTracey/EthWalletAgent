@@ -53,7 +53,7 @@ const agent = new EthWalletAgent({
 
 // Simplify the capability definition to match SDK expectations
 agent.addCapability({
-    name: 'summarizeEthTransactions',
+    name: 'summarizeTokenTransactions', // Changed to match function name
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
     schema: z.object({
         walletAddress: z.string()
@@ -62,10 +62,6 @@ agent.addCapability({
     }),
     async run({ args, action }) {
         try {
-            if (!args.walletAddress.startsWith('0x')) {
-                throw new Error('Ethereum address must start with 0x');
-            }
-            // Log the start of analysis if we have task context
             if (action?.workspace?.id && action?.task?.id) {
                 await this.addLogToTask({
                     workspaceId: action.workspace.id,
@@ -78,24 +74,36 @@ agent.addCapability({
 
             const result = await summarizeTokenTransactions(args.walletAddress);
             
-            // Update task if we have context
+            const response = {
+                newMessages: [
+                    `Successfully analyzed transactions for ${args.walletAddress}`
+                ],
+                outputToolCallId: action?.task?.id || 'direct_call',
+                result: {
+                    success: true,
+                    walletAddress: args.walletAddress,
+                    summary: result.chatGPTResponse,
+                    link: result.UrlToAccount,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
             if (action?.workspace?.id && action?.task?.id) {
-                await this.updateTaskStatus({
+                await this.completeTask({
                     workspaceId: action.workspace.id,
                     taskId: action.task.id,
-                    status: 'done'
+                    output: JSON.stringify(response)
                 });
             }
 
-            return JSON.stringify({
-                success: true,
-                walletAddress: args.walletAddress,
-                summary: result.chatGPTResponse,
-                link: result.UrlToAccount,
-                timestamp: new Date().toISOString()
-            });
+            return JSON.stringify(response);
         } catch (error) {
-            // Handle errors with proper task updates
+            const errorResponse = {
+                newMessages: [error.message || 'An unknown error occurred'],
+                outputToolCallId: action?.task?.id || 'direct_call',
+                error: error.message || 'Failed to analyze transactions'
+            };
+
             if (action?.workspace?.id && action?.task?.id) {
                 await this.requestHumanAssistance({
                     workspaceId: action.workspace.id,
@@ -104,7 +112,8 @@ agent.addCapability({
                     question: `Error analyzing wallet ${args.walletAddress}: ${error.message}`
                 });
             }
-            throw error;
+
+            return JSON.stringify(errorResponse);
         }
     }
 });
