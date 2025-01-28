@@ -18,7 +18,6 @@ class EthWalletAgent extends Agent {
         super(options);
     }
 
-    // Remove 'protected' keyword since we're in JavaScript
     async doTask(action) {
         if (!action.task) return;
 
@@ -67,6 +66,15 @@ class EthWalletAgent extends Agent {
             });
         }
     }
+
+    // Add chat handling
+    async respondToChat(action) {
+        await this.sendChatMessage({
+            workspaceId: action.workspace.id,
+            agentId: action.me.id,
+            message: "I can help analyze Ethereum wallet transactions. Please provide a wallet address starting with 0x."
+        });
+    }
 }
 
 const agent = new EthWalletAgent({
@@ -89,7 +97,6 @@ const agent = new EthWalletAgent({
     }
 });
 
-// Simplify capability definition
 agent.addCapability({
     name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -114,7 +121,7 @@ agent.addCapability({
     }
 });
 
-// Start the agent with explicit error handling
+// Start the agent
 agent.start()
     .then(() => {
         console.log(`Agent running on port ${process.env.PORT || 8080}`);

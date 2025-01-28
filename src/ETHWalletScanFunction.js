@@ -23,7 +23,17 @@ async function summarizeTokenTransactions(walletAddress) {
         const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
         const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
 
-        const response = await axios.get(etherscanUrl);
+        const response = await axios.get(etherscanUrl, {
+            timeout: 10000, // Add timeout
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        // Handle rate limiting
+        if (response.data.message === 'NOTOK' && response.data.result.includes('Max rate limit reached')) {
+            throw new Error('Etherscan API rate limit reached. Please try again later.');
+        }
         
         if (response.data.status !== "1") {
             throw new Error(`Etherscan API error: ${response.data.message}`);
@@ -64,6 +74,9 @@ async function summarizeTokenTransactions(walletAddress) {
         });
         return { chatGPTResponse: chatGPTResponse.choices[0].message.content, UrlToAccount: urlToWallet };
     } catch (error) {
+        if (error.response?.status === 429) {
+            throw new Error('Etherscan API rate limit reached. Please try again later.');
+        }
         console.error("Error in summarizeTokenTransactions:", error);
         throw error; // Propagate error to be handled by the agent
     }
