@@ -9,7 +9,11 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "author": "",
+  "license": "ISC",
   "dependencies": {
     "@openfeature/server-sdk": "^1.17.0",
     "@openserv-labs/sdk": "^1.1.0",
@@ -20,9 +24,5 @@
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.9",
     "openai": "^4.79.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-
   }
 }

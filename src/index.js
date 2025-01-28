@@ -20,69 +20,29 @@ const agent = new Agent({
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
     apiKey: process.env.OPENSERV_API_KEY,
-    port: process.env.PORT || 8080
+    port: parseInt(process.env.PORT || '8080'),
+    onError: (error, context) => {
+        console.error('Agent error:', error.message, context);
+    }
 });
 
-// Modify the capability to handle both direct calls and task-based calls
+// Simplify the capability definition to match SDK expectations
 agent.addCapability({
     name: 'summarizeEthTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
     schema: z.object({
         walletAddress: z.string().min(1, "A valid wallet address is required")
     }),
-    async run({ args, action }) {
-        try {
-            let result;
-            const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
-            
-            const analysis = {
-                success: true,
-                walletAddress: args.walletAddress,
-                summary: chatGPTResponse,
-                link: UrlToAccount,
-                timestamp: new Date().toISOString()
-            };
-
-            // Handle task-based execution
-            if (action?.workspace?.id && action?.task?.id) {
-                await agent.updateTaskStatus({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    status: 'in-progress'
-                });
-
-                await agent.addLogToTask({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    severity: 'info',
-                    type: 'text',
-                    body: `Analysis completed for wallet: ${args.walletAddress}`
-                });
-
-                await agent.completeTask({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    output: JSON.stringify(analysis)
-                });
-
-                result = { taskCompleted: true, ...analysis };
-            } else {
-                // Handle direct API calls
-                result = analysis;
-            }
-
-            return JSON.stringify(result);
-        } catch (error) {
-            if (action?.workspace?.id && action?.task?.id) {
-                await agent.requestHumanAssistance({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    type: 'text',
-                    question: `Error analyzing wallet ${args.walletAddress}: ${error.message}. Please verify the wallet address and try again.`
-                });
-            }
-            throw new Error(`Failed to summarize token transactions: ${error.message}`);
-        }
+    async run({ args }) {
+        const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
+        
+        return JSON.stringify({
+            success: true,
+            walletAddress: args.walletAddress,
+            summary: chatGPTResponse,
+            link: UrlToAccount,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
