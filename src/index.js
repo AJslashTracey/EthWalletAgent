@@ -16,21 +16,62 @@ for (const envVar of requiredEnvVars) {
 class EthWalletAgent extends Agent {
     constructor(options) {
         super(options);
-        this.setupCustomRoutes();
     }
 
-    setupCustomRoutes() {
-        // Add middleware to handle both /tools and //tools paths
-        this.app.use((req, res, next) => {
-            if (req.path.startsWith('//')) {
-                req.url = req.url.replace('//', '/');
+    // Override the handleToolRoute method to properly handle tool calls
+    async handleToolRoute(req) {
+        const { toolName } = req.params;
+        const { args, action } = req.body;
+
+        if (toolName === 'summarizeTokenTransactions') {
+            try {
+                const result = await summarizeTokenTransactions(args.walletAddress);
+                
+                const response = {
+                    newMessages: [`Successfully analyzed transactions for ${args.walletAddress}`],
+                    outputToolCallId: action?.task?.id || 'direct_call',
+                    result: {
+                        success: true,
+                        walletAddress: args.walletAddress,
+                        summary: result.chatGPTResponse,
+                        link: result.UrlToAccount,
+                        timestamp: new Date().toISOString()
+                    }
+                };
+
+                if (action?.workspace?.id && action?.task?.id) {
+                    await this.completeTask({
+                        workspaceId: action.workspace.id,
+                        taskId: action.task.id,
+                        output: JSON.stringify(response)
+                    });
+                }
+
+                return { result: JSON.stringify(response) };
+            } catch (error) {
+                const errorResponse = {
+                    newMessages: [error.message || 'An unknown error occurred'],
+                    outputToolCallId: action?.task?.id || 'direct_call',
+                    error: error.message || 'Failed to analyze transactions'
+                };
+
+                if (action?.workspace?.id && action?.task?.id) {
+                    await this.requestHumanAssistance({
+                        workspaceId: action.workspace.id,
+                        taskId: action.task.id,
+                        type: 'text',
+                        question: `Error analyzing wallet ${args.walletAddress}: ${error.message}`
+                    });
+                }
+
+                throw new Error(JSON.stringify(errorResponse));
             }
-            next();
-        });
+        }
+        
+        throw new Error(`Tool ${toolName} not found`);
     }
 }
 
-//Agent config
 const agent = new EthWalletAgent({
     systemPrompt: `You are a specialized crypto market analysis agent that:
     1. Analyzes token transactions fetched from wallet addresses using the API.
@@ -51,70 +92,20 @@ const agent = new EthWalletAgent({
     }
 });
 
-// Simplify the capability definition to match SDK expectations
 agent.addCapability({
-    name: 'summarizeTokenTransactions', // Changed to match function name
+    name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
     schema: z.object({
         walletAddress: z.string()
             .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
-            .transform(addr => addr.toLowerCase()) // Normalize address to lowercase
+            .transform(addr => addr.toLowerCase())
     }),
     async run({ args, action }) {
-        try {
-            if (action?.workspace?.id && action?.task?.id) {
-                await this.addLogToTask({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    severity: 'info',
-                    type: 'text',
-                    body: `Starting analysis for wallet: ${args.walletAddress}`
-                });
-            }
-
-            const result = await summarizeTokenTransactions(args.walletAddress);
-            
-            const response = {
-                newMessages: [
-                    `Successfully analyzed transactions for ${args.walletAddress}`
-                ],
-                outputToolCallId: action?.task?.id || 'direct_call',
-                result: {
-                    success: true,
-                    walletAddress: args.walletAddress,
-                    summary: result.chatGPTResponse,
-                    link: result.UrlToAccount,
-                    timestamp: new Date().toISOString()
-                }
-            };
-
-            if (action?.workspace?.id && action?.task?.id) {
-                await this.completeTask({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    output: JSON.stringify(response)
-                });
-            }
-
-            return JSON.stringify(response);
-        } catch (error) {
-            const errorResponse = {
-                newMessages: [error.message || 'An unknown error occurred'],
-                outputToolCallId: action?.task?.id || 'direct_call',
-                error: error.message || 'Failed to analyze transactions'
-            };
-
-            if (action?.workspace?.id && action?.task?.id) {
-                await this.requestHumanAssistance({
-                    workspaceId: action.workspace.id,
-                    taskId: action.task.id,
-                    type: 'text',
-                    question: `Error analyzing wallet ${args.walletAddress}: ${error.message}`
-                });
-            }
-
-            return JSON.stringify(errorResponse);
-        }
+        // The actual execution is now handled in handleToolRoute
+        return JSON.stringify({
+            newMessages: [`Processing wallet ${args.walletAddress}`],
+            outputToolCallId: action?.task?.id || 'direct_call',
+        });
     }
 });
 
