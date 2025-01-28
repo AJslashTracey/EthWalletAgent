@@ -6,11 +6,29 @@ export { summarizeTokenTransactions };
 dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
-    const apiKey = process.env.ETHERSCAN_API_KEY;
-    const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
-    const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
     try {
+        const apiKey = process.env.ETHERSCAN_API_KEY;
+        if (!apiKey) {
+            throw new Error("ETHERSCAN_API_KEY is required");
+        }
+
+        // Validate wallet address format
+        if (!walletAddress || typeof walletAddress !== 'string' || !walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+            throw new Error("Invalid Ethereum address format");
+        }
+
+        // Normalize address to lowercase for consistent handling
+        const normalizedAddress = walletAddress.toLowerCase();
+        
+        const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
+        const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
+
         const response = await axios.get(etherscanUrl);
+        
+        if (response.data.status !== "1") {
+            throw new Error(`Etherscan API error: ${response.data.message}`);
+        }
+
         const transactions = response.data.result;
         if (!transactions || transactions.length === 0) return { chatGPTResponse: "No transactions found.", UrlToAccount: urlToWallet };
         const recentTransactions = transactions.map(tx => ({
@@ -32,7 +50,9 @@ async function summarizeTokenTransactions(walletAddress) {
                 contractAddress: tx.contractAddress
             });
         });
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY 
+        });
         const chatGPTResponse = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
@@ -44,7 +64,8 @@ async function summarizeTokenTransactions(walletAddress) {
         });
         return { chatGPTResponse: chatGPTResponse.choices[0].message.content, UrlToAccount: urlToWallet };
     } catch (error) {
-        return { chatGPTResponse: `Error: ${error.message}`, UrlToAccount: urlToWallet };
+        console.error("Error in summarizeTokenTransactions:", error);
+        throw error; // Propagate error to be handled by the agent
     }
 }
 
