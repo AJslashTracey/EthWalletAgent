@@ -18,57 +18,61 @@ class EthWalletAgent extends Agent {
         super(options);
     }
 
-    // Override the handleToolRoute method to properly handle tool calls
-    async handleToolRoute(req) {
-        const { toolName } = req.params;
-        const { args, action } = req.body;
+    // Override the root route handler
+    async handleRootRoute(req) {
+        const { body } = req;
+        
+        // Handle the initial request
+        if (body.type === 'do-task') {
+            await this.doTask(body);
+            return;
+        }
 
-        if (toolName === 'summarizeTokenTransactions') {
+        // Handle tool execution
+        if (body.args && body.args.walletAddress) {
             try {
-                const result = await summarizeTokenTransactions(args.walletAddress);
+                const result = await summarizeTokenTransactions(body.args.walletAddress);
                 
                 const response = {
-                    newMessages: [`Successfully analyzed transactions for ${args.walletAddress}`],
-                    outputToolCallId: action?.task?.id || 'direct_call',
+                    newMessages: [`Successfully analyzed transactions for ${body.args.walletAddress}`],
+                    outputToolCallId: body.action?.task?.id || 'direct_call',
                     result: {
                         success: true,
-                        walletAddress: args.walletAddress,
+                        walletAddress: body.args.walletAddress,
                         summary: result.chatGPTResponse,
                         link: result.UrlToAccount,
                         timestamp: new Date().toISOString()
                     }
                 };
 
-                if (action?.workspace?.id && action?.task?.id) {
+                if (body.action?.workspace?.id && body.action?.task?.id) {
                     await this.completeTask({
-                        workspaceId: action.workspace.id,
-                        taskId: action.task.id,
+                        workspaceId: body.action.workspace.id,
+                        taskId: body.action.task.id,
                         output: JSON.stringify(response)
                     });
                 }
 
-                return { result: JSON.stringify(response) };
+                return response;
             } catch (error) {
                 const errorResponse = {
                     newMessages: [error.message || 'An unknown error occurred'],
-                    outputToolCallId: action?.task?.id || 'direct_call',
+                    outputToolCallId: body.action?.task?.id || 'direct_call',
                     error: error.message || 'Failed to analyze transactions'
                 };
 
-                if (action?.workspace?.id && action?.task?.id) {
+                if (body.action?.workspace?.id && body.action?.task?.id) {
                     await this.requestHumanAssistance({
-                        workspaceId: action.workspace.id,
-                        taskId: action.task.id,
+                        workspaceId: body.action.workspace.id,
+                        taskId: body.action.task.id,
                         type: 'text',
-                        question: `Error analyzing wallet ${args.walletAddress}: ${error.message}`
+                        question: `Error analyzing wallet ${body.args.walletAddress}: ${error.message}`
                     });
                 }
 
                 throw new Error(JSON.stringify(errorResponse));
             }
         }
-        
-        throw new Error(`Tool ${toolName} not found`);
     }
 }
 
@@ -101,7 +105,6 @@ agent.addCapability({
             .transform(addr => addr.toLowerCase())
     }),
     async run({ args, action }) {
-        // The actual execution is now handled in handleToolRoute
         return JSON.stringify({
             newMessages: [`Processing wallet ${args.walletAddress}`],
             outputToolCallId: action?.task?.id || 'direct_call',
