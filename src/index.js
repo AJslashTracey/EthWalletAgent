@@ -18,60 +18,53 @@ class EthWalletAgent extends Agent {
         super(options);
     }
 
-    // Override the root route handler
-    async handleRootRoute(req) {
-        const { body } = req;
-        
-        // Handle the initial request
-        if (body.type === 'do-task') {
-            await this.doTask(body);
-            return;
-        }
+    // Remove 'protected' keyword since we're in JavaScript
+    async doTask(action) {
+        if (!action.task) return;
 
-        // Handle tool execution
-        if (body.args && body.args.walletAddress) {
-            try {
-                const result = await summarizeTokenTransactions(body.args.walletAddress);
-                
-                const response = {
-                    newMessages: [`Successfully analyzed transactions for ${body.args.walletAddress}`],
-                    outputToolCallId: body.action?.task?.id || 'direct_call',
-                    result: {
-                        success: true,
-                        walletAddress: body.args.walletAddress,
-                        summary: result.chatGPTResponse,
-                        link: result.UrlToAccount,
-                        timestamp: new Date().toISOString()
-                    }
-                };
-
-                if (body.action?.workspace?.id && body.action?.task?.id) {
-                    await this.completeTask({
-                        workspaceId: body.action.workspace.id,
-                        taskId: body.action.task.id,
-                        output: JSON.stringify(response)
-                    });
-                }
-
-                return response;
-            } catch (error) {
-                const errorResponse = {
-                    newMessages: [error.message || 'An unknown error occurred'],
-                    outputToolCallId: body.action?.task?.id || 'direct_call',
-                    error: error.message || 'Failed to analyze transactions'
-                };
-
-                if (body.action?.workspace?.id && body.action?.task?.id) {
-                    await this.requestHumanAssistance({
-                        workspaceId: body.action.workspace.id,
-                        taskId: body.action.task.id,
-                        type: 'text',
-                        question: `Error analyzing wallet ${body.args.walletAddress}: ${error.message}`
-                    });
-                }
-
-                throw new Error(JSON.stringify(errorResponse));
+        try {
+            // Extract wallet address from task input or description
+            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) || 
+                         action.task.description?.match(/0x[a-fA-F0-9]{40}/);
+            
+            if (!match) {
+                await this.requestHumanAssistance({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    type: 'text',
+                    question: 'Please provide a valid Ethereum wallet address.'
+                });
+                return;
             }
+
+            const walletAddress = match[0];
+            const result = await summarizeTokenTransactions(walletAddress);
+
+            const response = {
+                newMessages: [`Successfully analyzed transactions for ${walletAddress}`],
+                outputToolCallId: action.task.id,
+                result: {
+                    success: true,
+                    walletAddress,
+                    summary: result.chatGPTResponse,
+                    link: result.UrlToAccount,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            await this.completeTask({
+                workspaceId: action.workspace.id,
+                taskId: action.task.id,
+                output: JSON.stringify(response)
+            });
+
+        } catch (error) {
+            await this.requestHumanAssistance({
+                workspaceId: action.workspace.id,
+                taskId: action.task.id,
+                type: 'text',
+                question: `Error analyzing wallet: ${error.message}`
+            });
         }
     }
 }
@@ -96,6 +89,7 @@ const agent = new EthWalletAgent({
     }
 });
 
+// Simplify capability definition
 agent.addCapability({
     name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -105,9 +99,17 @@ agent.addCapability({
             .transform(addr => addr.toLowerCase())
     }),
     async run({ args, action }) {
+        const result = await summarizeTokenTransactions(args.walletAddress);
         return JSON.stringify({
-            newMessages: [`Processing wallet ${args.walletAddress}`],
+            newMessages: [`Successfully analyzed wallet ${args.walletAddress}`],
             outputToolCallId: action?.task?.id || 'direct_call',
+            result: {
+                success: true,
+                walletAddress: args.walletAddress,
+                summary: result.chatGPTResponse,
+                link: result.UrlToAccount,
+                timestamp: new Date().toISOString()
+            }
         });
     }
 });
