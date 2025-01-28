@@ -6,6 +6,13 @@ import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 // Load environment variables
 dotenv.config();
 
+const requiredEnvVars = ['OPENSERV_API_KEY', 'ETHERSCAN_API_KEY', 'OPENAI_API_KEY'];
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        throw new Error(`${envVar} environment variable is required`);
+    }
+}
+
 //Agent config
 const agent = new Agent({
     systemPrompt: `You are a specialized crypto market analysis agent that:
@@ -21,6 +28,7 @@ const agent = new Agent({
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
     apiKey: process.env.OPENSERV_API_KEY,
     port: parseInt(process.env.PORT || '8080'),
+    openaiApiKey: process.env.OPENAI_API_KEY,
     onError: (error, context) => {
         console.error('Agent error:', error.message, context);
     }
@@ -31,18 +39,51 @@ agent.addCapability({
     name: 'summarizeEthTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
     schema: z.object({
-        walletAddress: z.string().min(1, "A valid wallet address is required")
+        walletAddress: z.string().min(42, "Ethereum address must be 42 characters").max(42)
     }),
-    async run({ args }) {
-        const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
-        
-        return JSON.stringify({
-            success: true,
-            walletAddress: args.walletAddress,
-            summary: chatGPTResponse,
-            link: UrlToAccount,
-            timestamp: new Date().toISOString()
-        });
+    async run({ args, action }) {
+        try {
+            // Log the start of analysis if we have task context
+            if (action?.workspace?.id && action?.task?.id) {
+                await this.addLogToTask({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    severity: 'info',
+                    type: 'text',
+                    body: `Starting analysis for wallet: ${args.walletAddress}`
+                });
+            }
+
+            const result = await summarizeTokenTransactions(args.walletAddress);
+            
+            // Update task if we have context
+            if (action?.workspace?.id && action?.task?.id) {
+                await this.updateTaskStatus({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    status: 'done'
+                });
+            }
+
+            return JSON.stringify({
+                success: true,
+                walletAddress: args.walletAddress,
+                summary: result.chatGPTResponse,
+                link: result.UrlToAccount,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            // Handle errors with proper task updates
+            if (action?.workspace?.id && action?.task?.id) {
+                await this.requestHumanAssistance({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    type: 'text',
+                    question: `Error analyzing wallet ${args.walletAddress}: ${error.message}`
+                });
+            }
+            throw error;
+        }
     }
 });
 
