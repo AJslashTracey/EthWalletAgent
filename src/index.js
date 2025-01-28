@@ -6,8 +6,11 @@ import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 // Load environment variables
 dotenv.config();
 
-//Agent config
+// Agent config - add explicit port configuration
+const PORT = process.env.PORT || 7378;
+
 const agent = new Agent({
+    port: PORT,  // explicitly set port
     systemPrompt: `You are a specialized crypto market analysis agent that:
     1. Analyzes token transactions fetched from wallet addresses using the API.
        - Identifies inflow and outflow transactions for tokens.
@@ -24,12 +27,11 @@ const agent = new Agent({
 
 agent.addCapabilities([
     {
-      name: 'summarizeEthTransactions', // Match the name used in the platform
+      name: 'summarizeEthTransactions',
       description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
+      // We only require 'walletAddress' in our schema
       schema: z.object({
-        walletAddress: z.string()
-          .regex(/^0x[a-fA-F0-9]{40}$/, 'Must be a valid Ethereum address')
-          .transform(addr => addr.toLowerCase()) // Normalize address to lowercase
+        walletAddress: z.string().min(1, "A valid wallet address is required")
       }),
       async run({ args, action }) {
         try {
@@ -116,9 +118,9 @@ agent.addCapabilities([
   ]);
   
   // Finally, start the agent
-  agent.start({ port: process.env.PORT || 7378 })
+  agent.start()
     .then(() => {
-      console.log(`Agent running on port ${process.env.PORT || 7378}`);
+      console.log(`Agent running on port ${PORT}`);
     })
     .catch(error => {
       console.error("Error starting agent:", error.message);

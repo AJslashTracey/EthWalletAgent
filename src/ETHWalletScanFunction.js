@@ -6,19 +6,7 @@ export { summarizeTokenTransactions };
 dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
-    // Validate wallet address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-        throw new Error('Invalid Ethereum wallet address format');
-    }
-
     const apiKey = process.env.ETHERSCAN_API_KEY;
-    if (!apiKey) {
-        throw new Error('ETHERSCAN_API_KEY is not configured');
-    }
-
-    // Normalize address to lowercase
-    walletAddress = walletAddress.toLowerCase();
-
     const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
     const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
     try {
