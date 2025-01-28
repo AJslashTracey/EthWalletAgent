@@ -1,16 +1,25 @@
 import { Agent } from '@openserv-labs/sdk';
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import express from 'express';
 import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 
 // Load environment variables
 dotenv.config();
 
-// Agent config - add explicit port configuration
 const PORT = process.env.PORT || 7378;
 
+// Create Express app instance
+const app = express();
+
+// Add middleware to normalize routes with double slashes
+app.use((req, res, next) => {
+    req.url = req.url.replace(/\/+/g, '/');
+    next();
+});
+
 const agent = new Agent({
-    port: PORT,  // explicitly set port
+    port: PORT,
     systemPrompt: `You are a specialized crypto market analysis agent that:
     1. Analyzes token transactions fetched from wallet addresses using the API.
        - Identifies inflow and outflow transactions for tokens.
@@ -29,18 +38,15 @@ agent.addCapabilities([
     {
       name: 'summarizeEthTransactions',
       description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
-      // We only require 'walletAddress' in our schema
       schema: z.object({
         walletAddress: z.string().min(1, "A valid wallet address is required")
       }),
       async run({ args, action }) {
         try {
-          // Validate task context if you’re using OpenServ's task-based system
           if (!action?.workspace?.id || !action?.task?.id) {
             throw new Error('Task context required');
           }
   
-          // (Optional) Update task status and add logs for your own tracking
           await agent.updateTaskStatus({
             workspaceId: action.workspace.id,
             taskId: action.task.id,
@@ -54,20 +60,16 @@ agent.addCapabilities([
             body: `Starting token transaction summary for wallet: ${args.walletAddress}`
           });
   
-          // Call your imported function to summarize token transactions
           const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
   
-          // Build final analysis object
           const analysis = {
             success: true,
             walletAddress: args.walletAddress,
-            // The function returns a GPT summary (chatGPTResponse) and a link (UrlToAccount)
             summary: chatGPTResponse,
             link: UrlToAccount,
             timestamp: new Date().toISOString()
           };
   
-          // Complete the task and include results (if using an OpenServ-like flow)
           await agent.completeTask({
             workspaceId: action.workspace.id,
             taskId: action.task.id,
@@ -80,7 +82,6 @@ agent.addCapabilities([
             })
           });
   
-          // Also return the result
           return JSON.stringify({
             newMessages: [
               `Successfully analyzed transactions for ${args.walletAddress}`
@@ -89,7 +90,6 @@ agent.addCapabilities([
             result: analysis
           });
         } catch (error) {
-          // If something goes wrong, return the error
           const errorResponse = {
             newMessages: [error.message || 'An unknown error occurred'],
             outputToolCallId: action.task?.id,
@@ -117,11 +117,27 @@ agent.addCapabilities([
     }
   ]);
   
-  // Finally, start the agent
-  agent.start()
+// Explicitly define the route for the tool
+app.post('/tools/summarizeEthTransactions', async (req, res) => {
+    try {
+        const result = await agent.handleToolRoute({
+            params: { toolName: 'summarizeEthTransactions' },
+            body: req.body
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Use the Express app in the agent
+agent.app = app;
+
+// Start the agent
+agent.start()
     .then(() => {
-      console.log(`Agent running on port ${PORT}`);
+        console.log(`Agent running on port ${PORT}`);
     })
     .catch(error => {
-      console.error("Error starting agent:", error.message);
+        console.error("Error starting agent:", error.message);
     });
