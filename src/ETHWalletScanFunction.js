@@ -31,16 +31,31 @@ async function summarizeTokenTransactions(walletAddress) {
         });
 
         // Handle rate limiting
-        if (response.data.message === 'NOTOK' && response.data.result.includes('Max rate limit reached')) {
+        if (response.data.message === 'NOTOK' && response.data.result?.includes('Max rate limit reached')) {
             throw new Error('Etherscan API rate limit reached. Please try again later.');
         }
         
-        if (response.data.status !== "1") {
+        // Handle "No transactions found" as a valid response, not an error
+        if (response.data.status === "0" && response.data.message === "No transactions found") {
+            return { 
+                chatGPTResponse: "This wallet has no token transactions.", 
+                UrlToAccount: urlToWallet 
+            };
+        }
+
+        // Handle other API errors
+        if (response.data.status !== "1" && response.data.message !== "No transactions found") {
             throw new Error(`Etherscan API error: ${response.data.message}`);
         }
 
-        const transactions = response.data.result;
-        if (!transactions || transactions.length === 0) return { chatGPTResponse: "No transactions found.", UrlToAccount: urlToWallet };
+        const transactions = response.data.result || [];
+        if (transactions.length === 0) {
+            return { 
+                chatGPTResponse: "No token transactions found for this wallet.", 
+                UrlToAccount: urlToWallet 
+            };
+        }
+
         const recentTransactions = transactions.map(tx => ({
             tokenName: tx.tokenName,
             value: parseFloat(tx.value) / Math.pow(10, tx.tokenDecimal),
