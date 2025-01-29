@@ -1,19 +1,83 @@
-import axios from "axios";
 import { Agent } from '@openserv-labs/sdk';
 import { z } from 'zod';
-import { Scraper } from '@the-convocation/twitter-scraper';
 import dotenv from 'dotenv';
-import OpenAI from 'openai';
 import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 
-
-
-
-
+// Load environment variables
 dotenv.config();
 
-//Agent config
-const agent = new Agent({
+const requiredEnvVars = ['OPENSERV_API_KEY', 'ETHERSCAN_API_KEY', 'OPENAI_API_KEY'];
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        throw new Error(`${envVar} environment variable is required`);
+    }
+}
+
+class EthWalletAgent extends Agent {
+    constructor(options) {
+        super(options);
+    }
+
+    async doTask(action) {
+        if (!action.task) return;
+
+        try {
+            // Extract wallet address from task input or description
+            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) || 
+                         action.task.description?.match(/0x[a-fA-F0-9]{40}/);
+            
+            if (!match) {
+                await this.requestHumanAssistance({
+                    workspaceId: action.workspace.id,
+                    taskId: action.task.id,
+                    type: 'text',
+                    question: 'Please provide a valid Ethereum wallet address.'
+                });
+                return;
+            }
+
+            const walletAddress = match[0];
+            const result = await summarizeTokenTransactions(walletAddress);
+
+            const response = {
+                newMessages: [`Successfully analyzed transactions for ${walletAddress}`],
+                outputToolCallId: action.task.id,
+                result: {
+                    success: true,
+                    walletAddress,
+                    summary: result.chatGPTResponse,
+                    link: result.UrlToAccount,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            await this.completeTask({
+                workspaceId: action.workspace.id,
+                taskId: action.task.id,
+                output: JSON.stringify(response)
+            });
+
+        } catch (error) {
+            await this.requestHumanAssistance({
+                workspaceId: action.workspace.id,
+                taskId: action.task.id,
+                type: 'text',
+                question: `Error analyzing wallet: ${error.message}`
+            });
+        }
+    }
+
+    // Add chat handling
+    async respondToChat(action) {
+        await this.sendChatMessage({
+            workspaceId: action.workspace.id,
+            agentId: action.me.id,
+            message: "I can help analyze Ethereum wallet transactions. Please provide a wallet address starting with 0x."
+        });
+    }
+}
+
+const agent = new EthWalletAgent({
     systemPrompt: `You are a specialized crypto market analysis agent that:
     1. Analyzes token transactions fetched from wallet addresses using the API.
        - Identifies inflow and outflow transactions for tokens.
@@ -25,113 +89,44 @@ const agent = new Agent({
        - Major wallet activity
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
-    apiKey: "0f1490d7300a4dc59b9d033db16ed761"
+    apiKey: process.env.OPENSERV_API_KEY,
+    port: parseInt(process.env.PORT || '8080'),
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    onError: (error, context) => {
+        console.error('Agent error:', error.message, context);
+    }
 });
 
-
-
-
-
-
-
-
-agent.addCapabilities([
-    {
-      name: 'summarizeEthTransactions',
-      description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
-      // We only require 'walletAddress' in our schema
-      schema: z.object({
-        walletAddress: z.string().min(1, "A valid wallet address is required")
-      }),
-      async run({ args, action }) {
-        try {
-          // Validate task context if you’re using OpenServ's task-based system
-          if (!action?.workspace?.id || !action?.task?.id) {
-            throw new Error('Task context required');
-          }
-  
-          // (Optional) Update task status and add logs for your own tracking
-          await agent.updateTaskStatus({
-            workspaceId: action.workspace.id,
-            taskId: action.task.id,
-            status: 'in-progress'
-          });
-          await agent.addLogToTask({
-            workspaceId: action.workspace.id,
-            taskId: action.task.id,
-            severity: 'info',
-            type: 'text',
-            body: `Starting token transaction summary for wallet: ${args.walletAddress}`
-          });
-  
-          // Call your imported function to summarize token transactions
-          const { chatGPTResponse, UrlToAccount } = await summarizeTokenTransactions(args.walletAddress);
-  
-          // Build final analysis object
-          const analysis = {
-            success: true,
-            walletAddress: args.walletAddress,
-            // The function returns a GPT summary (chatGPTResponse) and a link (UrlToAccount)
-            summary: chatGPTResponse,
-            link: UrlToAccount,
-            timestamp: new Date().toISOString()
-          };
-  
-          // Complete the task and include results (if using an OpenServ-like flow)
-          await agent.completeTask({
-            workspaceId: action.workspace.id,
-            taskId: action.task.id,
-            output: JSON.stringify({
-              newMessages: [
-                `Successfully analyzed transactions for ${args.walletAddress}`
-              ],
-              outputToolCallId: action.task.id,
-              result: analysis
-            })
-          });
-  
-          // Also return the result
-          return JSON.stringify({
-            newMessages: [
-              `Successfully analyzed transactions for ${args.walletAddress}`
-            ],
-            outputToolCallId: action.task.id,
-            result: analysis
-          });
-        } catch (error) {
-          // If something goes wrong, return the error
-          const errorResponse = {
-            newMessages: [error.message || 'An unknown error occurred'],
-            outputToolCallId: action.task?.id,
-            error: error.message || 'Failed to summarize token transactions'
-          };
-  
-          if (action?.workspace?.id && action?.task?.id) {
-            await agent.updateTaskStatus({
-              workspaceId: action.workspace.id,
-              taskId: action.task.id,
-              status: 'error'
-            });
-            await agent.addLogToTask({
-              workspaceId: action.workspace.id,
-              taskId: action.task.id,
-              severity: 'error',
-              type: 'text',
-              body: error.message
-            });
-          }
-  
-          return JSON.stringify(errorResponse);
-        }
-      }
+agent.addCapability({
+    name: 'summarizeTokenTransactions',
+    description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
+    schema: z.object({
+        walletAddress: z.string()
+            .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+            .transform(addr => addr.toLowerCase())
+    }),
+    async run({ args, action }) {
+        const result = await summarizeTokenTransactions(args.walletAddress);
+        return JSON.stringify({
+            newMessages: [`Successfully analyzed wallet ${args.walletAddress}`],
+            outputToolCallId: action?.task?.id || 'direct_call',
+            result: {
+                success: true,
+                walletAddress: args.walletAddress,
+                summary: result.chatGPTResponse,
+                link: result.UrlToAccount,
+                timestamp: new Date().toISOString()
+            }
+        });
     }
-  ]);
-  
-  // Finally, start the agent
-  agent.start({ port: process.env.PORT || 7378 })
+});
+
+// Start the agent
+agent.start()
     .then(() => {
-      console.log(`Agent running on port ${process.env.PORT || 7378}`);
+        console.log(`Agent running on port ${process.env.PORT || 8080}`);
     })
     .catch(error => {
-      console.error("Error starting agent:", error.message);
+        console.error("Error starting agent:", error.message);
+        process.exit(1); // Exit on startup error
     });

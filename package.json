@@ -2,11 +2,15 @@
   "name": "ethwalletagent",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js"
+    "test": "node test/local-test.js",
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "author": "",
   "license": "ISC",
@@ -19,7 +23,6 @@
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.9",
-    "openai": "^4.79.1",
-    "twitter-api-v2": "^1.19.0"
+    "openai": "^4.79.1"
   }
 }
