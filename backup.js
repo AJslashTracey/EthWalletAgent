@@ -1,7 +1,3 @@
-
-
-
-
 import axios from "axios";
 import OpenAI from "openai";
 import dotenv from "dotenv";
