@@ -5,6 +5,23 @@ export { summarizeTokenTransactions };
 
 dotenv.config();
 
+
+//checking if the wallet owns the token which was involved in the transaction
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function getTokenBalance(walletAddress, contractAddress, apiKey) {
+    const url = `https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${walletAddress}&tag=latest&apikey=${apiKey}`;
+    try {
+        await delay(5000); // Wait 5 seconds before each API request
+        const response = await axios.get(url);
+        console.log(response.data)
+        return response.data.result || '0';
+    } catch (error) {
+        console.log("Token amount couldn't be determined", error);
+        return '0';
+    }
+}
+
 async function summarizeTokenTransactions(walletAddress) {
     try {
         const apiKey = process.env.ETHERSCAN_API_KEY;
