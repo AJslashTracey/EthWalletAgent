@@ -86,9 +86,14 @@ async function summarizeTokenTransactions(walletAddress) {
             max_tokens: 300,
             temperature: 0.3
         });
-        console.log(gptResponse.choices[0].message.content)
-        // Return only the ChatGPT response
-        return gptResponse.choices[0].message.content;
+        const overviewURL = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
+        console.log(gptResponse.choices[0].message.content);
+        // Return both the ChatGPT response and the overview URL
+        return {
+            summary: gptResponse.choices[0].message.content,
+            overviewURL
+        };
+        
 
     } catch (error) {
         console.error(`Transaction summary failed: ${error.message}`);
