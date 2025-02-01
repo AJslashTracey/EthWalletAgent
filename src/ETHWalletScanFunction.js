@@ -86,7 +86,7 @@ async function summarizeTokenTransactions(walletAddress) {
             max_tokens: 300,
             temperature: 0.3
         });
-
+        console.log(gptResponse.choices[0].message.content)
         // Return only the ChatGPT response
         return gptResponse.choices[0].message.content;
 
