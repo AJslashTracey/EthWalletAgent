@@ -91,11 +91,11 @@ agent.respondToChat = async function(action) {
 };
 
 // Handle tasks
-aagent.doTask = async function(action) {
+agent.doTask = async function(action) {
     const task = action.task;
-
+    
     if (!task) return;
-
+    
     try {
         await this.updateTaskStatus({
             workspaceId: action.workspace.id,
@@ -103,58 +103,26 @@ aagent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        console.log("Full Task Data:", task);
-
-        // Step 1: Extract ETH address from task input
-        let ethAddress = task.input?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
-
-        // Step 2: If missing, check human assistance responses
-        if (!ethAddress && task.humanAssistanceRequests?.length > 0) {
-            for (const request of task.humanAssistanceRequests) {
-                const potentialAddress = request.response?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
-                if (potentialAddress) {
-                    ethAddress = potentialAddress;
-                    break;
-                }
-            }
-        }
-
-        // Step 3: If ETH address is STILL missing, notify the project manager again
-        if (!ethAddress) {
-            console.log("Project Manager did not update the input field. Sending another request.");
+        // Check if we already have an ETH address in the task input
+        const addressMatch = task.input?.match(/0x[a-fA-F0-9]{40}/i);
+        
+        if (addressMatch) {
+            const result = await summarizeTokenTransactions(addressMatch[0]);
+            await this.completeTask({
+                workspaceId: action.workspace.id,
+                taskId: task.id,
+                output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
+            });
+        } else {
+            // Request the address through human assistance
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: `🚨 **Attention Project Manager!**
-                
-                The Ethereum wallet address **must be added to the "input" field of this task**. 
-                
-                Right now, it is still missing, and the task cannot proceed.
-                
-                **Please enter the Ethereum address in the input field** in the correct format: **0x followed by 40 hexadecimal characters.**
-                
-                If the address is only sent as a chat reply, it will **not be processed correctly**.`
+                question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters."
             });
-            return;
         }
-
-        console.log("ETH Address Found:", ethAddress);
-
-        // Step 4: Store ETH address in task.input to persist
-        task.input = ethAddress;
-
-        // Step 5: Proceed with transaction analysis using the ETH address
-        const result = await summarizeTokenTransactions(ethAddress);
-
-        await this.completeTask({
-            workspaceId: action.workspace.id,
-            taskId: task.id,
-            output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
-        });
-
     } catch (error) {
-        console.error("Error in doTask:", error);
         await this.markTaskAsErrored({
             workspaceId: action.workspace.id,
             taskId: task.id,
@@ -162,8 +130,6 @@ aagent.doTask = async function(action) {
         });
     }
 };
-
-
 
 agent.start()
     .then(() => {
