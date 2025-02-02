@@ -93,9 +93,9 @@ agent.respondToChat = async function(action) {
 // Handle tasks
 agent.doTask = async function(action) {
     const task = action.task;
-    
+
     if (!task) return;
-    
+
     try {
         await this.updateTaskStatus({
             workspaceId: action.workspace.id,
@@ -103,26 +103,43 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        // Check if we already have an ETH address in the task input
-        const addressMatch = task.input?.match(/0x[a-fA-F0-9]{40}/i);
-        
-        if (addressMatch) {
-            const result = await summarizeTokenTransactions(addressMatch[0]);
-            await this.completeTask({
-                workspaceId: action.workspace.id,
-                taskId: task.id,
-                output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
-            });
-        } else {
-            // Request the address through human assistance
+        console.log("Full Task Data:", task);
+
+        // Try to extract ETH address from task input first
+        let ethAddress = task.input?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
+
+        // If no ETH address in input, check human assistance responses
+        if (!ethAddress && task.humanAssistanceRequests?.length > 0) {
+            for (const request of task.humanAssistanceRequests) {
+                const potentialAddress = request.response?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
+                if (potentialAddress) {
+                    ethAddress = potentialAddress;
+                    break;
+                }
+            }
+        }
+
+        if (!ethAddress) {
+            console.log("No ETH address found in task input or human assistance response. Requesting user input.");
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
                 question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters."
             });
+            return;
         }
+
+        console.log("ETH Address Found:", ethAddress);
+        const result = await summarizeTokenTransactions(ethAddress);
+
+        await this.completeTask({
+            workspaceId: action.workspace.id,
+            taskId: task.id,
+            output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
+        });
     } catch (error) {
+        console.error("Error in doTask:", error);
         await this.markTaskAsErrored({
             workspaceId: action.workspace.id,
             taskId: task.id,
@@ -130,6 +147,7 @@ agent.doTask = async function(action) {
         });
     }
 };
+
 
 agent.start()
     .then(() => {
