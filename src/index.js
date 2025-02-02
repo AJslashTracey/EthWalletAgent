@@ -106,9 +106,9 @@ class EthWalletAgent extends Agent {
             const responseMessage = [
                 `**Successfully analyzed:** \`${walletAddress}\``,
                 `**Summary:** ${result.chatGPTResponse}`,
-                // Updated to show overviewURL
-                `View more: ${result.overviewURL}`,
-            ].join('\n');
+                // Use Markdown link format here:
+                `[View more](${result.overviewURL})`
+              ].join('\n');
 
             // (5) Send the response back as a chat message
             await this.sendChatMessage({
