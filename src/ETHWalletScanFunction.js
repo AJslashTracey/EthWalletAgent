@@ -35,7 +35,7 @@ async function summarizeTokenTransactions(walletAddress) {
 
     // Normalize the address for consistency
     const normalizedAddress = walletAddress.toLowerCase();
-    const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&page=1&offset=50&sort=desc&apikey=${apiKey}`;
+    const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&page=1&offset=50&sort=desc&apikey=53F99DJ3J4JA6NETZ7WKHEQVNXQA285DF7`;
     const overviewURL = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
 
     const response = await axios.get(etherscanUrl, {
