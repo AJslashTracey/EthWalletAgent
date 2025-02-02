@@ -13,6 +13,7 @@ for (const envVar of requiredEnvVars) {
     }
 }
 
+
 class EthWalletAgent extends Agent {
     constructor(options) {
         super(options);

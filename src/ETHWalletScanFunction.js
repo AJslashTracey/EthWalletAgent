@@ -20,6 +20,7 @@ async function getTokenBalance(walletAddress, contractAddress, apiKey) {
   }
 }
 
+console.log(process.env.ETHERSCAN_API_KEY)
 async function summarizeTokenTransactions(walletAddress) {
   try {
     const apiKey = process.env.ETHERSCAN_API_KEY;
