@@ -91,7 +91,7 @@ async function summarizeTokenTransactions(walletAddress) {
 
     return {
       chatGPTResponse: gptResponse.choices[0].message.content,
-      overviewURL
+      overviewURL  // Return this so the agent can use it
     };
 
   } catch (error) {
@@ -102,12 +102,3 @@ async function summarizeTokenTransactions(walletAddress) {
     throw error;
   }
 }
-
-(async () => {
-  try {
-    const result = await summarizeTokenTransactions("0x6dd63e4dd6201b20bc754b93b07de351ba053fd2");
-    console.log(result);
-  } catch (error) {
-    console.error(error);
-  }
-})();

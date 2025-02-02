@@ -49,7 +49,8 @@ class EthWalletAgent extends Agent {
                     success: true,
                     walletAddress,
                     summary: result.chatGPTResponse,
-                    link: result.UrlToAccount,
+                    // Use the correct property name from summarizeTokenTransactions
+                    link: result.overviewURL,
                     timestamp: new Date().toISOString()
                 }
             };
@@ -104,7 +105,8 @@ class EthWalletAgent extends Agent {
             const responseMessage = [
                 `**Successfully analyzed:** \`${walletAddress}\``,
                 `**Summary:** ${result.chatGPTResponse}`,
-                `View more: ${result.UrlToAccount}`,
+                // Updated to show overviewURL
+                `View more: ${result.overviewURL}`,
             ].join('\n');
 
             // (5) Send the response back as a chat message
@@ -145,6 +147,7 @@ const agent = new EthWalletAgent({
     }
 });
 
+// Register the summarizeTokenTransactions capability
 agent.addCapability({
     name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -162,7 +165,7 @@ agent.addCapability({
                 success: true,
                 walletAddress: args.walletAddress,
                 summary: result.chatGPTResponse,
-                link: result.UrlToAccount,
+                link: result.overviewURL, // Use the property name from summarizeTokenTransactions
                 timestamp: new Date().toISOString()
             }
         });
