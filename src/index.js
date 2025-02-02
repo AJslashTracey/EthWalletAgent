@@ -38,10 +38,8 @@ class EthWalletAgent extends Agent {
 
             const walletAddress = match[0];
 
-            // Summarize token transactions
             const result = await summarizeTokenTransactions(walletAddress);
 
-            // Prepare final response object
             const response = {
                 newMessages: [`Successfully analyzed transactions for ${walletAddress}`],
                 outputToolCallId: action.task.id,
@@ -72,20 +70,14 @@ class EthWalletAgent extends Agent {
         }
     }
 
-    /**
-     * respond-chat-message
-     * This method is invoked when the agent receives a direct message in chat.
-     */
+   
     async respondToChat(action) {
-        // (1) Extract the user's message from the chat event
-        // The "user" message is typically the last one in action.messages
         const userMessage = action.messages?.find(msg => msg.author === 'user')?.message || '';
 
         // (2) Look for an Ethereum address in the user’s message
         const match = userMessage.match(/0x[a-fA-F0-9]{40}/);
 
         if (!match) {
-            // If no address found, politely request an address
             await this.sendChatMessage({
                 workspaceId: action.workspace.id,
                 agentId: action.me.id,
@@ -101,7 +93,6 @@ class EthWalletAgent extends Agent {
             // (3) Summarize the token transactions for this address
             const result = await summarizeTokenTransactions(walletAddress);
 
-            // (4) Respond to the user in the chat with a summary
             const responseMessage = [
                 `**Successfully analyzed:** \`${walletAddress}\``,
                 `**Summary:** ${result.chatGPTResponse}`,
@@ -109,7 +100,6 @@ class EthWalletAgent extends Agent {
                 `[View more](${result.overviewURL})`
               ].join('\n');
 
-            // (5) Send the response back as a chat message
             await this.sendChatMessage({
                 workspaceId: action.workspace.id,
                 agentId: action.me.id,
@@ -117,7 +107,6 @@ class EthWalletAgent extends Agent {
             });
 
         } catch (error) {
-            // If something goes wrong, notify the user via chat
             await this.sendChatMessage({
                 workspaceId: action.workspace.id,
                 agentId: action.me.id,
@@ -172,7 +161,6 @@ agent.addCapability({
     }
 });
 
-// Start the agent
 agent.start()
     .then(() => {
         console.log(`Agent running on port ${process.env.PORT || 8080}`);

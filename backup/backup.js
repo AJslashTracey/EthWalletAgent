@@ -6,11 +6,39 @@ export { summarizeTokenTransactions };
 dotenv.config();
 
 async function summarizeTokenTransactions(walletAddress) {
-    const apiKey = process.env.ETHERSCAN_API_KEY;
-    const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
-    const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${walletAddress}`;
     try {
-        const response = await axios.get(etherscanUrl);
+        const apiKey = process.env.ETHERSCAN_API_KEY;
+        if (!apiKey) {
+            throw new Error("ETHERSCAN_API_KEY is required");
+        }
+
+        // Validate wallet address format
+        if (!walletAddress || typeof walletAddress !== 'string' || !walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+            throw new Error("Invalid Ethereum address format");
+        }
+
+        // Normalize address to lowercase for consistent handling
+        const normalizedAddress = walletAddress.toLowerCase();
+        
+        const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
+        const urlToWallet = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
+
+        const response = await axios.get(etherscanUrl, {
+            timeout: 10000, // Add timeout
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        // Handle rate limiting
+        if (response.data.message === 'NOTOK' && response.data.result.includes('Max rate limit reached')) {
+            throw new Error('Etherscan API rate limit reached. Please try again later.');
+        }
+        
+        if (response.data.status !== "1") {
+            throw new Error(`Etherscan API error: ${response.data.message}`);
+        }
+
         const transactions = response.data.result;
         if (!transactions || transactions.length === 0) return { chatGPTResponse: "No transactions found.", UrlToAccount: urlToWallet };
         const recentTransactions = transactions.map(tx => ({
@@ -29,10 +57,13 @@ async function summarizeTokenTransactions(walletAddress) {
                 totalMove: tx.value,
                 outInflow: tx.direction,
                 timestamp: tx.timestamp,
-                contractAddress: tx.contractAddress
+                contractAddress: tx.contractAddress,
+                tokenName: tx.tokenName // Added tokenName here
             });
         });
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = new OpenAI({ 
+            apiKey: process.env.OPENAI_API_KEY 
+        });
         const chatGPTResponse = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
@@ -42,9 +73,18 @@ async function summarizeTokenTransactions(walletAddress) {
             max_tokens: 1000,
             temperature: 1
         });
-        return { chatGPTResponse: chatGPTResponse.choices[0].message.content, UrlToAccount: urlToWallet };
+        return { chatGPTResponse: chatGPTResponse.choices[0].message.content };
     } catch (error) {
-        return { chatGPTResponse: `Error: ${error.message}`, UrlToAccount: urlToWallet };
+        if (error.response?.status === 429) {
+            throw new Error('Etherscan API rate limit reached. Please try again later.');
+        }
+        console.error("Error in summarizeTokenTransactions:", error);
+        throw error; // Propagate error to be handled by the agent
     }
 }
 
+
+(async () => {
+    const result = await summarizeTokenTransactions("0x6dd63e4dd6201b20bc754b93b07de351ba053fd2");
+    console.log(result);
+})();

@@ -10,7 +10,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function getTokenBalance(walletAddress, contractAddress, apiKey) {
   const url = `https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${walletAddress}&tag=latest&apikey=${apiKey}`;
   try {
-    await delay(5000); // Wait 5 seconds before each API request
+    await delay(5000); 
     const response = await axios.get(url);
     console.log(response.data);
     return response.data.result || '0';
@@ -27,7 +27,6 @@ async function summarizeTokenTransactions(walletAddress) {
       throw new Error("ETHERSCAN_API_KEY is required");
     }
 
-    // Validate wallet address format
     if (!walletAddress || typeof walletAddress !== 'string' || !walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       throw new Error("Invalid Ethereum address format");
     }
@@ -52,7 +51,6 @@ async function summarizeTokenTransactions(walletAddress) {
       return { chatGPTResponse: "No recent token transactions found.", overviewURL };
     }
 
-    // Simplify the transaction data (taking only the first 10 transactions)
     const simplifiedTx = transactions.map(tx => ({
       flow: tx.from.toLowerCase() === normalizedAddress ? 'outflow' : 'inflow',
       tokenName: tx.tokenName,
@@ -61,7 +59,6 @@ async function summarizeTokenTransactions(walletAddress) {
       contractAddress: tx.contractAddress
     })).slice(0, 10);
 
-    // Sequentially check token balances (5-second delay per API call)
     const updatedTransaction = [];
     for (const tx of simplifiedTx) {
       const balance = await getTokenBalance(normalizedAddress, tx.contractAddress, apiKey);
@@ -70,7 +67,6 @@ async function summarizeTokenTransactions(walletAddress) {
       }
     }
 
-    // Generate the ChatGPT summary using OpenAI
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     console.log("Updated transactions:", updatedTransaction);
     const gptResponse = await openai.chat.completions.create({
@@ -91,7 +87,7 @@ async function summarizeTokenTransactions(walletAddress) {
 
     return {
       chatGPTResponse: gptResponse.choices[0].message.content,
-      overviewURL  // Return this so the agent can use it
+      overviewURL 
     };
 
   } catch (error) {
