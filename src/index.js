@@ -22,9 +22,9 @@ class EthWalletAgent extends Agent {
         if (!action.task) return;
 
         try {
-            // (1) Extract wallet address from task input or description
-            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) ||
-                          action.task.description?.match(/0x[a-fA-F0-9]{40}/);
+            // Extract wallet address from task input or description
+            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) || 
+                         action.task.description?.match(/0x[a-fA-F0-9]{40}/);
             
             if (!match) {
                 await this.requestHumanAssistance({
@@ -37,7 +37,6 @@ class EthWalletAgent extends Agent {
             }
 
             const walletAddress = match[0];
-
             const result = await summarizeTokenTransactions(walletAddress);
 
             const response = {
@@ -47,13 +46,11 @@ class EthWalletAgent extends Agent {
                     success: true,
                     walletAddress,
                     summary: result.chatGPTResponse,
-                    // Use the correct property name from summarizeTokenTransactions
-                    link: result.overviewURL,
+                    link: result.UrlToAccount,
                     timestamp: new Date().toISOString()
                 }
             };
 
-            // Mark the task complete
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: action.task.id,
@@ -70,49 +67,13 @@ class EthWalletAgent extends Agent {
         }
     }
 
-   
+    // Add chat handling
     async respondToChat(action) {
-        const userMessage = action.messages?.find(msg => msg.author === 'user')?.message || '';
-
-        // (2) Look for an Ethereum address in the user’s message
-        const match = userMessage.match(/0x[a-fA-F0-9]{40}/);
-
-        if (!match) {
-            await this.sendChatMessage({
-                workspaceId: action.workspace.id,
-                agentId: action.me.id,
-                message:
-                  "I can help analyze Ethereum wallet transactions. Please provide a valid address (0x...)."
-            });
-            return;
-        }
-
-        const walletAddress = match[0];
-
-        try {
-            // (3) Summarize the token transactions for this address
-            const result = await summarizeTokenTransactions(walletAddress);
-
-            const responseMessage = [
-                `**Successfully analyzed:** \`${walletAddress}\``,
-                `**Summary:** ${result.chatGPTResponse}`,
-                // Use Markdown link format here:
-                `[View more](${result.overviewURL})`
-              ].join('\n');
-
-            await this.sendChatMessage({
-                workspaceId: action.workspace.id,
-                agentId: action.me.id,
-                message: responseMessage
-            });
-
-        } catch (error) {
-            await this.sendChatMessage({
-                workspaceId: action.workspace.id,
-                agentId: action.me.id,
-                message: `Error analyzing wallet: ${error.message}`
-            });
-        }
+        await this.sendChatMessage({
+            workspaceId: action.workspace.id,
+            agentId: action.me.id,
+            message: "I can help analyze Ethereum wallet transactions. Please provide a wallet address starting with 0x."
+        });
     }
 }
 
@@ -136,7 +97,6 @@ const agent = new EthWalletAgent({
     }
 });
 
-// Register the summarizeTokenTransactions capability
 agent.addCapability({
     name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -154,13 +114,14 @@ agent.addCapability({
                 success: true,
                 walletAddress: args.walletAddress,
                 summary: result.chatGPTResponse,
-                link: result.overviewURL, // Use the property name from summarizeTokenTransactions
+                link: result.UrlToAccount,
                 timestamp: new Date().toISOString()
             }
         });
     }
 });
 
+// Start the agent
 agent.start()
     .then(() => {
         console.log(`Agent running on port ${process.env.PORT || 8080}`);
