@@ -9,6 +9,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getTokenBalance(walletAddress, contractAddress, apiKey) {
   const url = `https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${walletAddress}&tag=latest&apikey=${apiKey}`;
+  console.log(url)
   try {
     await delay(5000); // Wait 5 seconds before each API request
     const response = await axios.get(url);
@@ -36,6 +37,7 @@ async function summarizeTokenTransactions(walletAddress) {
     // Normalize the address for consistency
     const normalizedAddress = walletAddress.toLowerCase();
     const etherscanUrl = `https://api.etherscan.io/api?module=account&action=tokentx&address=${normalizedAddress}&page=1&offset=50&sort=desc&apikey=${apiKey}`;
+    console.log(etherscanUrl)
     const overviewURL = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
 
     const response = await axios.get(etherscanUrl, {
