@@ -97,11 +97,14 @@ agent.doTask = async function(action) {
     if (!task) return;
     
     try {
-        await this.updateTaskStatus({
+        await this.updateTask({
             workspaceId: action.workspace.id,
             taskId: task.id,
-            status: 'in-progress'
-        });
+            body: 'Some descriptive text',
+            input: 'Here is the wallet address or other data',
+            expectations: 'A brief summary of what the task should produce'
+          });
+          
 
         // Check if we already have an ETH address in the task input
         const addressMatch = task.input?.match(/0x[a-fA-F0-9]{40}/i);
