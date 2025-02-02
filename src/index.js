@@ -22,9 +22,9 @@ class EthWalletAgent extends Agent {
         if (!action.task) return;
 
         try {
-            // Extract wallet address from task input or description
-            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) || 
-                         action.task.description?.match(/0x[a-fA-F0-9]{40}/);
+            // (1) Extract wallet address from task input or description
+            const match = action.task.input?.match(/0x[a-fA-F0-9]{40}/) ||
+                          action.task.description?.match(/0x[a-fA-F0-9]{40}/);
             
             if (!match) {
                 await this.requestHumanAssistance({
@@ -37,8 +37,11 @@ class EthWalletAgent extends Agent {
             }
 
             const walletAddress = match[0];
+
+            // Summarize token transactions
             const result = await summarizeTokenTransactions(walletAddress);
 
+            // Prepare final response object
             const response = {
                 newMessages: [`Successfully analyzed transactions for ${walletAddress}`],
                 outputToolCallId: action.task.id,
@@ -46,11 +49,13 @@ class EthWalletAgent extends Agent {
                     success: true,
                     walletAddress,
                     summary: result.chatGPTResponse,
-                    link: result.UrlToAccount,
+                    // Use the correct property name from summarizeTokenTransactions
+                    link: result.overviewURL,
                     timestamp: new Date().toISOString()
                 }
             };
 
+            // Mark the task complete
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: action.task.id,
@@ -67,13 +72,58 @@ class EthWalletAgent extends Agent {
         }
     }
 
-    // Add chat handling
+    /**
+     * respond-chat-message
+     * This method is invoked when the agent receives a direct message in chat.
+     */
     async respondToChat(action) {
-        await this.sendChatMessage({
-            workspaceId: action.workspace.id,
-            agentId: action.me.id,
-            message: "I can help analyze Ethereum wallet transactions. Please provide a wallet address starting with 0x."
-        });
+        // (1) Extract the user's message from the chat event
+        // The "user" message is typically the last one in action.messages
+        const userMessage = action.messages?.find(msg => msg.author === 'user')?.message || '';
+
+        // (2) Look for an Ethereum address in the user’s message
+        const match = userMessage.match(/0x[a-fA-F0-9]{40}/);
+
+        if (!match) {
+            // If no address found, politely request an address
+            await this.sendChatMessage({
+                workspaceId: action.workspace.id,
+                agentId: action.me.id,
+                message:
+                  "I can help analyze Ethereum wallet transactions. Please provide a valid address (0x...)."
+            });
+            return;
+        }
+
+        const walletAddress = match[0];
+
+        try {
+            // (3) Summarize the token transactions for this address
+            const result = await summarizeTokenTransactions(walletAddress);
+
+            // (4) Respond to the user in the chat with a summary
+            const responseMessage = [
+                `**Successfully analyzed:** \`${walletAddress}\``,
+                `**Summary:** ${result.chatGPTResponse}`,
+                // Updated to show overviewURL
+                `View more: ${result.overviewURL}`,
+            ].join('\n');
+
+            // (5) Send the response back as a chat message
+            await this.sendChatMessage({
+                workspaceId: action.workspace.id,
+                agentId: action.me.id,
+                message: responseMessage
+            });
+
+        } catch (error) {
+            // If something goes wrong, notify the user via chat
+            await this.sendChatMessage({
+                workspaceId: action.workspace.id,
+                agentId: action.me.id,
+                message: `Error analyzing wallet: ${error.message}`
+            });
+        }
     }
 }
 
@@ -97,6 +147,7 @@ const agent = new EthWalletAgent({
     }
 });
 
+// Register the summarizeTokenTransactions capability
 agent.addCapability({
     name: 'summarizeTokenTransactions',
     description: 'Summarizes inflow and outflow token transactions for a specified wallet address.',
@@ -114,7 +165,7 @@ agent.addCapability({
                 success: true,
                 walletAddress: args.walletAddress,
                 summary: result.chatGPTResponse,
-                link: result.UrlToAccount,
+                link: result.overviewURL, // Use the property name from summarizeTokenTransactions
                 timestamp: new Date().toISOString()
             }
         });
