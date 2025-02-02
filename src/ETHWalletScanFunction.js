@@ -99,7 +99,11 @@ async function summarizeTokenTransactions(walletAddress) {
 
   } catch (error) {
     if (error.response?.status === 429) {
-      throw new Error('Etherscan API rate limit reached. Please try again later.');
+      throw new Error('Rate limit reached. Please try again in a few minutes.');
+    } else if (error.message.includes('Invalid Ethereum address')) {
+      throw new Error('Please provide a valid Ethereum address (0x followed by 40 hexadecimal characters).');
+    } else if (error.response?.status === 404) {
+      throw new Error('Address not found or has no transactions.');
     }
     console.error("Error in summarizeTokenTransactions:", error);
     throw error;
