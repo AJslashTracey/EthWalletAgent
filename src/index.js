@@ -91,7 +91,7 @@ agent.respondToChat = async function(action) {
 };
 
 // Handle tasks
-agent.doTask = async function(action) {
+aagent.doTask = async function(action) {
     const task = action.task;
 
     if (!task) return;
@@ -105,10 +105,10 @@ agent.doTask = async function(action) {
 
         console.log("Full Task Data:", task);
 
-        // Try to extract ETH address from task input first
+        // Step 1: Extract ETH address from task input
         let ethAddress = task.input?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
 
-        // If no ETH address in input, check human assistance responses
+        // Step 2: If missing, check human assistance responses
         if (!ethAddress && task.humanAssistanceRequests?.length > 0) {
             for (const request of task.humanAssistanceRequests) {
                 const potentialAddress = request.response?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
@@ -119,18 +119,32 @@ agent.doTask = async function(action) {
             }
         }
 
+        // Step 3: If ETH address is STILL missing, notify the project manager again
         if (!ethAddress) {
-            console.log("No ETH address found in task input or human assistance response. Requesting user input.");
+            console.log("Project Manager did not update the input field. Sending another request.");
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters."
+                question: `🚨 **Attention Project Manager!**
+                
+                The Ethereum wallet address **must be added to the "input" field of this task**. 
+                
+                Right now, it is still missing, and the task cannot proceed.
+                
+                **Please enter the Ethereum address in the input field** in the correct format: **0x followed by 40 hexadecimal characters.**
+                
+                If the address is only sent as a chat reply, it will **not be processed correctly**.`
             });
             return;
         }
 
         console.log("ETH Address Found:", ethAddress);
+
+        // Step 4: Store ETH address in task.input to persist
+        task.input = ethAddress;
+
+        // Step 5: Proceed with transaction analysis using the ETH address
         const result = await summarizeTokenTransactions(ethAddress);
 
         await this.completeTask({
@@ -138,6 +152,7 @@ agent.doTask = async function(action) {
             taskId: task.id,
             output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
         });
+
     } catch (error) {
         console.error("Error in doTask:", error);
         await this.markTaskAsErrored({
@@ -147,6 +162,7 @@ agent.doTask = async function(action) {
         });
     }
 };
+
 
 
 agent.start()
