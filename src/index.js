@@ -90,7 +90,6 @@ agent.respondToChat = async function(action) {
     }
 };
 
-// Handle tasks
 agent.doTask = async function(action) {
     const task = action.task;
     
@@ -103,33 +102,56 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        // Check if we already have an ETH address in the task input
-        const addressMatch = task.input?.match(/0x[a-fA-F0-9]{40}/i);
-        
+        let addressMatch;
+
+        if (task.input && typeof task.input === 'string') {
+            addressMatch = task.input.match(/^0x[a-fA-F0-9]{40}$/i);
+        }
+
+        if (!addressMatch && task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
+            const lastResponse = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1]?.response;
+
+            if (lastResponse && typeof lastResponse === 'string') {
+                addressMatch = lastResponse.match(/0x[a-fA-F0-9]{40}/i);
+                
+                if (addressMatch) {
+                    task.input = addressMatch[0];
+                }
+            }
+        }
+
         if (addressMatch) {
             const result = await summarizeTokenTransactions(addressMatch[0]);
+            
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
-                output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
+                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
+
         } else {
-            // Request the address through human assistance
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters."
+                question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
+                agentDump: {
+                    conversationHistory: action.messages,
+                    expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
+                    // HAR will use this response once user provides it
+                    processResponse: true 
+                }
             });
         }
     } catch (error) {
         await this.markTaskAsErrored({
             workspaceId: action.workspace.id,
             taskId: task.id,
-            error: error.message
+            error: `Error: ${error.message}`
         });
     }
 };
+
 
 agent.start()
     .then(() => {
