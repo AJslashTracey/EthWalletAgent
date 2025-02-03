@@ -58,30 +58,34 @@ agent.addCapability({
 
 // Handle chat responses
 agent.respondToChat = async function(action) {
-    // Check if there's an ETH address in any message
-    const ethAddressMatch = action.messages.some(msg => 
-        msg.message?.toLowerCase().match(/0x[a-fA-F0-9]{40}/i)
-    );
+    const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
     
-    if (ethAddressMatch) {
-        const address = action.messages[action.messages.length - 1].message.match(/0x[a-fA-F0-9]{40}/i)[0];
-        return this.handleToolRoute({
+    // Check if the message contains an ETH address
+    const addressMatch = lastMessage.match(/0x[a-fA-F0-9]{40}/i);
+    
+    if (addressMatch) {
+        // If we found an ETH address, analyze it
+        await this.handleToolRoute({
             params: { toolName: 'analyzeWallet' },
             body: { 
-                args: { address },
+                args: { address: addressMatch[0] },
                 action,
                 messages: action.messages
             }
         });
-    }
-    
-    // Only ask for address if message suggests analysis intent
-    const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
-    if (lastMessage.includes('analyze') || lastMessage.includes('check') || lastMessage.includes('wallet')) {
+    } else if (lastMessage.includes('plan') || lastMessage.includes('analyze')) {
+        // If it's a planning request without an address
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
-            message: "Please provide an Ethereum wallet address (starting with 0x followed by 40 hex characters) to analyze."
+            message: "I'll help you analyze Ethereum wallet transactions. Please provide the Ethereum wallet address you'd like to analyze (it should start with 0x followed by 40 characters)."
+        });
+    } else {
+        // For any other message, ask for the address
+        await this.sendChatMessage({
+            workspaceId: action.workspace.id,
+            agentId: action.me.id,
+            message: "I need a valid Ethereum wallet address to analyze. Please provide one in the format 0x followed by 40 hexadecimal characters."
         });
     }
 };
@@ -89,53 +93,89 @@ agent.respondToChat = async function(action) {
 agent.doTask = async function(action) {
     const task = action.task;
     if (!task) return;
-    
+  
     try {
-        await this.updateTaskStatus({
+      // Mark task in progress
+      await this.updateTaskStatus({
+        workspaceId: action.workspace.id,
+        taskId: task.id,
+        status: 'in-progress'
+      });
+  
+      // Figure out which tool is being called
+      if (task.toolName === 'analyzeWallet') {
+        // (your existing analyzeWallet logic goes here)
+        // ...
+      }
+      else if (task.toolName === 'findTokenInformations') {
+        let tokenInput;
+  
+        // 1) Attempt to use the task input
+        if (task.input && typeof task.input === 'string') {
+          tokenInput = task.input.trim();
+        }
+  
+        // 2) If no valid input in the task, check last human assistance
+        if (!tokenInput && task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
+          const lastResponse = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1]?.response;
+          if (lastResponse && typeof lastResponse === 'string') {
+            tokenInput = lastResponse.trim();
+            task.input = tokenInput; 
+          }
+        }
+  
+        // 3) If still no input, request HAR
+        if (!tokenInput) {
+          await this.requestHumanAssistance({
             workspaceId: action.workspace.id,
             taskId: task.id,
-            status: 'in-progress'
-        });
-
-        // Extract address from task input or last human assistance response
-        let address = task.input?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
-        
-        if (!address && task.humanAssistanceRequests?.length > 0) {
-            const lastResponse = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1]?.response;
-            address = lastResponse?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
-        }
-
-        if (address) {
-            const result = await summarizeTokenTransactions(address);
-            await this.completeTask({
-                workspaceId: action.workspace.id,
-                taskId: task.id,
-                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
-            });
-        } else {
-            // Only request human assistance if we haven't already
-            if (!task.humanAssistanceRequests?.length) {
-                await this.requestHumanAssistance({
-                    workspaceId: action.workspace.id,
-                    taskId: task.id,
-                    type: 'text',
-                    question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
-                    agentDump: {
-                        conversationHistory: action.messages,
-                        expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
-                        processResponse: true 
-                    }
-                });
+            type: 'text',
+            question: "I need a **ticker symbol** or **token name** to fetch crypto details. Please provide something like `ETH`, `BTC`, or a token name.",
+            agentDump: {
+              conversationHistory: action.messages,
+              expectedFormat: "Crypto ticker (like 'ETH' or 'BTC') or token name.",
+              processResponse: true
             }
+          });
+          console.log("HAR request was sent");
+          return;
         }
-    } catch (error) {
-        await this.markTaskAsErrored({
+  
+        // 4) We have a token symbol or name, so call your tool
+        const result = await dexScreenerService.findTokenBySymbol(tokenInput);
+        if (!result) {
+          // If not found, optionally request HAR again or just complete with a message
+          await this.completeTask({
             workspaceId: action.workspace.id,
             taskId: task.id,
-            error: `Error: ${error.message}`
-        });
+            output: `No data found for "${tokenInput}". Please confirm the symbol or name.`
+          });
+        } else {
+          // If found, mark the task as complete
+          await this.completeTask({
+            workspaceId: action.workspace.id,
+            taskId: task.id,
+            output: `Fetched data for ${result.name} (${result.symbol}). Details saved in JSON.`
+          });
+        }
+      }
+      else if (task.toolName === 'twitterPostMessage') {
+        // (the same approach for posting a Tweet)
+        // ...
+      }
+      else {
+        // If you have multiple tools, you can handle them here or default
+        console.log("No matching toolName. Doing nothing.");
+      }
+    } catch (error) {
+      await this.markTaskAsErrored({
+        workspaceId: action.workspace.id,
+        taskId: task.id,
+        error: `Error: ${error.message}`
+      });
     }
-};
+  };
+  
 
 
 agent.start()
