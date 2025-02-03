@@ -98,12 +98,7 @@ agent.doTask = async function(action) {
         return;
     }
     
-    console.log("[doTask] Processing task:", {
-        taskId: task.id,
-        description: task.description,
-        input: task.input,
-        hasHumanAssistance: task.humanAssistanceRequests?.length > 0
-    });
+    console.log("[doTask] Full task object:", JSON.stringify(task, null, 2));
     
     try {
         await this.updateTaskStatus({
@@ -115,14 +110,16 @@ agent.doTask = async function(action) {
         // First check for human assistance response
         if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
             const lastRequest = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
-            console.log("[doTask] Found human assistance request:", {
-                response: lastRequest?.response,
-                hasResponse: !!lastRequest?.response
-            });
+            console.log("[doTask] Full human assistance request:", JSON.stringify(lastRequest, null, 2));
             
-            if (lastRequest && lastRequest.response) {
-                const addressMatch = lastRequest.response.match(/0x[a-fA-F0-9]{40}/i);
+            // Check both response and response.answer as per OpenServ documentation
+            const responseText = lastRequest?.response?.answer || lastRequest?.response;
+            console.log("[doTask] Human assistance response text:", responseText);
+            
+            if (responseText) {
+                const addressMatch = responseText.match(/0x[a-fA-F0-9]{40}/i);
                 console.log("[doTask] Checking address from human assistance:", {
+                    responseText,
                     matched: !!addressMatch,
                     address: addressMatch ? addressMatch[0] : null
                 });
