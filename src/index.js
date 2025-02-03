@@ -36,9 +36,12 @@ agent.addCapability({
             const lastUserMessage = messages.findLast(m => m.role === 'user')?.content || '';
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
-            if (!isValidAddress) {
-                return `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`;
-            }
+            await agent.requestHumanAssistance({
+                workspaceId: action.workspace.id,
+                taskId: action.task.id,
+                type: 'text',
+                question: `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`
+              })
 
             const result = await summarizeTokenTransactions(args.address);
             
