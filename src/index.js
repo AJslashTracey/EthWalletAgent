@@ -98,7 +98,7 @@ agent.doTask = async function(action) {
         return;
     }
     
-    console.log("[doTask] Full task object:", JSON.stringify(task, null, 2));
+    console.log("[doTask] Processing task ID:", task.id);
     
     try {
         await this.updateTaskStatus({
@@ -107,13 +107,17 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        // First check for human assistance response
+        // First check for human assistance response with improved logging
         if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
             const lastRequest = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
-            console.log("[doTask] Full human assistance request:", JSON.stringify(lastRequest, null, 2));
+            console.log("[doTask] Found last human assistance request:", {
+                requestId: lastRequest?.id,
+                status: lastRequest?.status,
+                humanResponse: lastRequest?.humanResponse // This is where the response actually is
+            });
             
-            // Check both response and response.answer as per OpenServ documentation
-            const responseText = lastRequest?.response?.answer || lastRequest?.response;
+            // The humanResponse is directly on the request object, not in response
+            const responseText = lastRequest?.humanResponse;
             console.log("[doTask] Human assistance response text:", responseText);
             
             if (responseText) {
