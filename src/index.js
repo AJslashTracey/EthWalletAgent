@@ -93,7 +93,17 @@ agent.respondToChat = async function(action) {
 agent.doTask = async function(action) {
     const task = action.task;
     
-    if (!task) return;
+    if (!task) {
+        console.log("[doTask] No task found in action:", JSON.stringify(action));
+        return;
+    }
+    
+    console.log("[doTask] Processing task:", {
+        taskId: task.id,
+        description: task.description,
+        input: task.input,
+        hasHumanAssistance: task.humanAssistanceRequests?.length > 0
+    });
     
     try {
         await this.updateTaskStatus({
@@ -105,10 +115,20 @@ agent.doTask = async function(action) {
         // First check for human assistance response
         if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
             const lastRequest = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
+            console.log("[doTask] Found human assistance request:", {
+                response: lastRequest?.response,
+                hasResponse: !!lastRequest?.response
+            });
+            
             if (lastRequest && lastRequest.response) {
                 const addressMatch = lastRequest.response.match(/0x[a-fA-F0-9]{40}/i);
+                console.log("[doTask] Checking address from human assistance:", {
+                    matched: !!addressMatch,
+                    address: addressMatch ? addressMatch[0] : null
+                });
+                
                 if (addressMatch) {
-                    // Process the address from human assistance
+                    console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
                     await this.completeTask({
@@ -125,9 +145,15 @@ agent.doTask = async function(action) {
         let addressMatch;
         if (task.input) {
             addressMatch = task.input.match(/0x[a-fA-F0-9]{40}/i);
+            console.log("[doTask] Checking address from task input:", {
+                input: task.input,
+                matched: !!addressMatch,
+                address: addressMatch ? addressMatch[0] : null
+            });
         }
 
         if (addressMatch) {
+            console.log("[doTask] Processing address from task input:", addressMatch[0]);
             const result = await summarizeTokenTransactions(addressMatch[0]);
             
             await this.completeTask({
@@ -136,6 +162,7 @@ agent.doTask = async function(action) {
                 output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
         } else {
+            console.log("[doTask] No valid address found, requesting human assistance");
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
@@ -147,9 +174,18 @@ agent.doTask = async function(action) {
                     processResponse: true 
                 }
             });
-            console.log("HAR request was sent for task:", task.id);
+            console.log("[doTask] Human assistance request sent for task:", {
+                taskId: task.id,
+                workspaceId: action.workspace.id
+            });
         }
     } catch (error) {
+        console.error("[doTask] Error processing task:", {
+            taskId: task.id,
+            error: error.message,
+            stack: error.stack
+        });
+        
         await this.markTaskAsErrored({
             workspaceId: action.workspace.id,
             taskId: task.id,
