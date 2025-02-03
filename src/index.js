@@ -102,22 +102,29 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        let addressMatch;
-
-        if (task.input && typeof task.input === 'string') {
-            addressMatch = task.input.match(/^0x[a-fA-F0-9]{40}$/i);
-        }
-
-        if (!addressMatch && task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
-            const lastResponse = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1]?.response;
-
-            if (lastResponse && typeof lastResponse === 'string') {
-                addressMatch = lastResponse.match(/0x[a-fA-F0-9]{40}/i);
-                
+        // First check for human assistance response
+        if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
+            const lastRequest = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
+            if (lastRequest && lastRequest.response) {
+                const addressMatch = lastRequest.response.match(/0x[a-fA-F0-9]{40}/i);
                 if (addressMatch) {
-                    task.input = addressMatch[0];
+                    // Process the address from human assistance
+                    const result = await summarizeTokenTransactions(addressMatch[0]);
+                    
+                    await this.completeTask({
+                        workspaceId: action.workspace.id,
+                        taskId: task.id,
+                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                    });
+                    return;
                 }
             }
+        }
+
+        // Then check task input
+        let addressMatch;
+        if (task.input) {
+            addressMatch = task.input.match(/0x[a-fA-F0-9]{40}/i);
         }
 
         if (addressMatch) {
@@ -128,7 +135,6 @@ agent.doTask = async function(action) {
                 taskId: task.id,
                 output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
-
         } else {
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
@@ -138,11 +144,9 @@ agent.doTask = async function(action) {
                 agentDump: {
                     conversationHistory: action.messages,
                     expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
-                    // HAR will use this response once user provides it
                     processResponse: true 
                 }
             });
-            console.log("HAR request was sent")
         }
     } catch (error) {
         await this.markTaskAsErrored({
@@ -152,7 +156,6 @@ agent.doTask = async function(action) {
         });
     }
 };
-
 
 agent.start()
     .then(() => {
