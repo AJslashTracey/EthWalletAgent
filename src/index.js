@@ -36,12 +36,9 @@ agent.addCapability({
             const lastUserMessage = messages.findLast(m => m.role === 'user')?.content || '';
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
-            await agent.requestHumanAssistance({
-                workspaceId: action.workspace.id,
-                taskId: action.task.id,
-                type: 'text',
-                question: `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`
-              })
+            if (!isValidAddress) {
+                return `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`;
+            }
 
             const result = await summarizeTokenTransactions(args.address);
             
@@ -96,72 +93,35 @@ agent.respondToChat = async function(action) {
 // Handle tasks
 agent.doTask = async function(action) {
     const task = action.task;
+    
     if (!task) return;
-
+    
     try {
         await this.updateTaskStatus({
             workspaceId: action.workspace.id,
             taskId: task.id,
             status: 'in-progress'
         });
-        
-        let addressMatch;
-        
-        // 1) Check if the user responded previously via human assistance
-        if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
-            // The latest human assistance response (the user's message)
-            const lastHumanAssistance = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
-            // Try to match a valid ETH address in the user’s response
-            addressMatch = lastHumanAssistance.response.match(/0x[a-fA-F0-9]{40}/i);
-            
-            if (addressMatch) {
-                // 2) Store the matched address inside task.input
-                task.input = addressMatch[0];
-            }
-        }
 
-        // 3) If task.input is still missing or invalid, ask again
-        if (!task.input) {
+        // Check if we already have an ETH address in the task input
+        const addressMatch = task.input?.match(/0x[a-fA-F0-9]{40}/i);
+        
+        if (addressMatch) {
+            const result = await summarizeTokenTransactions(addressMatch[0]);
+            await this.completeTask({
+                workspaceId: action.workspace.id,
+                taskId: task.id,
+                output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
+            });
+        } else {
+            // Request the address through human assistance
             await this.requestHumanAssistance({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters.",
-                
-                // Include any info your agent will need when the user replies
-                agentDump: {
-                    conversationHistory: action.messages,
-                    note: "The user must supply a 0x + 40 hex character address."
-                }
+                question: "To analyze wallet transactions, I need a valid Ethereum wallet address. Please provide one in the format 0x followed by 40 hexadecimal characters."
             });
-            return;
         }
-
-        // 4) We have something in task.input: check it’s valid
-        addressMatch = task.input.match(/0x[a-fA-F0-9]{40}/i);
-        if (!addressMatch) {
-            // Address is invalid – ask again
-            await this.requestHumanAssistance({
-                workspaceId: action.workspace.id,
-                taskId: task.id,
-                type: 'text',
-                question: "The address provided is not valid. Please ensure it is in the format 0x followed by 40 hex characters.",
-                agentDump: {
-                    conversationHistory: action.messages
-                }
-            });
-            return;
-        }
-
-        // 5) Address is valid, perform the analysis
-        const result = await summarizeTokenTransactions(addressMatch[0]);
-        
-        // Mark the task complete with our final output
-        await this.completeTask({
-            workspaceId: action.workspace.id,
-            taskId: task.id,
-            output: `Analysis Results:\n${result.chatGPTResponse}\n\nDetailed view: ${result.overviewURL}`
-        });
     } catch (error) {
         await this.markTaskAsErrored({
             workspaceId: action.workspace.id,
@@ -170,7 +130,6 @@ agent.doTask = async function(action) {
         });
     }
 };
-
 
 agent.start()
     .then(() => {
