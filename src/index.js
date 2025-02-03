@@ -58,41 +58,36 @@ agent.addCapability({
 
 // Handle chat responses
 agent.respondToChat = async function(action) {
-    const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
+    // Check if there's an ETH address in any message
+    const ethAddressMatch = action.messages.some(msg => 
+        msg.message?.toLowerCase().match(/0x[a-fA-F0-9]{40}/i)
+    );
     
-    // Check if the message contains an ETH address
-    const addressMatch = lastMessage.match(/0x[a-fA-F0-9]{40}/i);
-    
-    if (addressMatch) {
-        // If we found an ETH address, analyze it
-        await this.handleToolRoute({
+    if (ethAddressMatch) {
+        const address = action.messages[action.messages.length - 1].message.match(/0x[a-fA-F0-9]{40}/i)[0];
+        return this.handleToolRoute({
             params: { toolName: 'analyzeWallet' },
             body: { 
-                args: { address: addressMatch[0] },
+                args: { address },
                 action,
                 messages: action.messages
             }
         });
-    } else if (lastMessage.includes('plan') || lastMessage.includes('analyze')) {
-        // If it's a planning request without an address
+    }
+    
+    // Only ask for address if message suggests analysis intent
+    const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
+    if (lastMessage.includes('analyze') || lastMessage.includes('check') || lastMessage.includes('wallet')) {
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
-            message: "I'll help you analyze Ethereum wallet transactions. Please provide the Ethereum wallet address you'd like to analyze (it should start with 0x followed by 40 characters)."
-        });
-    } else {
-        // For any other message, ask for the address
-        await this.sendChatMessage({
-            workspaceId: action.workspace.id,
-            agentId: action.me.id,
-            message: "I need a valid Ethereum wallet address to analyze. Please provide one in the format 0x followed by 40 hexadecimal characters."
+            message: "Please provide an Ethereum wallet address (starting with 0x followed by 40 hex characters) to analyze."
         });
     }
 };
 
 agent.doTask = async function(action) {
     const task = action.task;
-    
     if (!task) return;
     
     try {
@@ -102,47 +97,36 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        let addressMatch;
-
-        if (task.input && typeof task.input === 'string') {
-            addressMatch = task.input.match(/^0x[a-fA-F0-9]{40}$/i);
-        }
-
-        if (!addressMatch && task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
+        // Extract address from task input or last human assistance response
+        let address = task.input?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
+        
+        if (!address && task.humanAssistanceRequests?.length > 0) {
             const lastResponse = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1]?.response;
-
-            if (lastResponse && typeof lastResponse === 'string') {
-                addressMatch = lastResponse.match(/0x[a-fA-F0-9]{40}/i);
-                
-                if (addressMatch) {
-                    task.input = addressMatch[0];
-                }
-            }
+            address = lastResponse?.match(/0x[a-fA-F0-9]{40}/i)?.[0];
         }
 
-        if (addressMatch) {
-            const result = await summarizeTokenTransactions(addressMatch[0]);
-            
+        if (address) {
+            const result = await summarizeTokenTransactions(address);
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
-
         } else {
-            await this.requestHumanAssistance({
-                workspaceId: action.workspace.id,
-                taskId: task.id,
-                type: 'text',
-                question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
-                agentDump: {
-                    conversationHistory: action.messages,
-                    expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
-                    // HAR will use this response once user provides it
-                    processResponse: true 
-                }
-            });
-            console.log("HAR request was sent")
+            // Only request human assistance if we haven't already
+            if (!task.humanAssistanceRequests?.length) {
+                await this.requestHumanAssistance({
+                    workspaceId: action.workspace.id,
+                    taskId: task.id,
+                    type: 'text',
+                    question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
+                    agentDump: {
+                        conversationHistory: action.messages,
+                        expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
+                        processResponse: true 
+                    }
+                });
+            }
         }
     } catch (error) {
         await this.markTaskAsErrored({
