@@ -142,6 +142,7 @@ agent.doTask = async function(action) {
                     processResponse: true 
                 }
             });
+            console.log("HAR request was sent")
         }
     } catch (error) {
         await this.markTaskAsErrored({
