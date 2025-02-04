@@ -49,3 +49,7 @@ Create a `.env` file in the root directory:
 
 ---
 
+
+
+Agent will be available on [OpenServ AI](https://openserv.ai/)
+
