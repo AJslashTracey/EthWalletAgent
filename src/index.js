@@ -168,7 +168,7 @@ agent.doTask = async function(action) {
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "⚠️ I need a valid Ethereum wallet address to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by 40 hexadecimal characters.",
+                question: "⚠️ I need a valid Ethereum wallet address to proceed.\n\n💡 Please provide one in this format:\n0x followed by 40 hexadecimal characters.",
                 agentDump: {
                     conversationHistory: action.messages,
                     expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
