@@ -7,7 +7,7 @@ An AI-powered agent that analyzes Ethereum wallet transactions and provides deta
 - 📊 Fetches and analyzes token transactions from any Ethereum wallet
 - 💱 Summarizes inflow and outflow activities for each token
 - 📈 Calculates total transferred amounts and movement patterns
-- 🤖 Provides AI-generated insights using GPT-4
+- 🤖 Provides AI-generated insights using GPT-o4
 - 🔗 Includes detailed transaction analysis with SpotOnChain links
 
 ## Prerequisites
