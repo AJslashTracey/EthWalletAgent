@@ -55,7 +55,7 @@ agent.addCapability({
         }
     }
 });
-
+/*
 // Handle chat responses
 agent.respondToChat = async function(action) {
     const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
@@ -89,6 +89,9 @@ agent.respondToChat = async function(action) {
         });
     }
 };
+
+
+*/
 
 agent.doTask = async function(action) {
     const task = action.task;
