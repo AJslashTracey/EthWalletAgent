@@ -53,3 +53,5 @@ Create a `.env` file in the root directory:
 
 Agent will be available on [OpenServ AI](https://openserv.ai/)
 
+For questions dm us on dc .mainjcr or .pandaroe 
+
