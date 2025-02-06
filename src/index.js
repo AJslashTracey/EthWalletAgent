@@ -141,7 +141,7 @@ agent.doTask = async function(action) {
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
-                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                        output: `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
                     });
                     return;
                 }
