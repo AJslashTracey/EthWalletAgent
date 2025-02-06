@@ -55,6 +55,9 @@ agent.addCapability({
         }
     }
 });
+
+
+
 /*
 // Handle chat responses
 agent.respondToChat = async function(action) {
