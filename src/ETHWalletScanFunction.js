@@ -86,7 +86,7 @@ async function summarizeTokenTransactions(walletAddress) {
     const gptResponse = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
-        { role: "system", content: "Summarize token transactions in 3-5 bullet points. Include flow directions, main tokens, and timing patterns." },
+        { role: "system", content: "Summarize token transactions 1. What the current token holdings are 2. What tokens have been bought/sold within the last 1/3/7 days. just use the tokens in transactions as which the wallet is holding" },
         { role: "user", content: `Analyze these transactions: ${JSON.stringify(updatedTransaction)}` }
       ],
       max_tokens: 300,
