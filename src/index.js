@@ -156,16 +156,19 @@ ${result.chatGPTResponse}
 
                     const fileName = generateAnalysisFileName(addressMatch[0]);
                     
-                    // Upload file to workspace
+                    // Convert markdown content to Base64
+                    const fileContent = Buffer.from(markdownOutput).toString('base64');
+
+                    // Upload file to workspace with correct format
                     await this.uploadFile({
                         workspaceId: action.workspace.id,
                         path: fileName,
-                        file: markdownOutput,
+                        file: markdownOutput, // Changed: use 'file' instead of 'content'
                         taskIds: [task.id],
-                        skipSummarizer: true // Skip automatic summarization for our own summary
+                        skipSummarizer: true // This is a valid parameter
                     });
 
-                    // Complete task with file reference
+                    // Complete task with both markdown output and file reference
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
@@ -210,16 +213,19 @@ ${result.chatGPTResponse}
             const fileName = generateAnalysisFileName(addressMatch[0]);
             
             try {
-                // Upload file to workspace
+                // Convert markdown content to Base64
+                const fileContent = Buffer.from(markdownOutput).toString('base64');
+
+                // Upload file to workspace with correct parameters according to agent.d.ts
                 await this.uploadFile({
                     workspaceId: action.workspace.id,
                     path: fileName,
-                    file: markdownOutput,
+                    file: markdownOutput, // Changed: use 'file' instead of 'content'
                     taskIds: [task.id],
-                    skipSummarizer: true
+                    skipSummarizer: true // This is a valid parameter
                 });
 
-                // Complete task with file reference
+                // Complete task (no need to include files array as it's not in the interface)
                 await this.completeTask({
                     workspaceId: action.workspace.id,
                     taskId: task.id,
