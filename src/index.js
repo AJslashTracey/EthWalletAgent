@@ -56,19 +56,13 @@ agent.addCapability({
     }
 });
 
-
-
-/*
-// Handle chat responses
+// Add chat response handling
 agent.respondToChat = async function(action) {
     const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
-    
-    // Check if the message contains an ETH address
     const addressMatch = lastMessage.match(/0x[a-fA-F0-9]{40}/i);
     
     if (addressMatch) {
-        // If we found an ETH address, analyze it
-        await this.handleToolRoute({
+        const result = await this.handleToolRoute({
             params: { toolName: 'analyzeWallet' },
             body: { 
                 args: { address: addressMatch[0] },
@@ -76,15 +70,40 @@ agent.respondToChat = async function(action) {
                 messages: action.messages
             }
         });
+        
+        // Parse the JSON response properly
+        const analysisResult = JSON.parse(result.result);
+        
+        // Save chat analysis to markdown file with proper structure
+        const markdownContent = `# Chat Wallet Analysis Report
+## Address: ${addressMatch[0]}
+${analysisResult.chatGPTResponse}
+
+## Detailed View
+[View Transaction Details](${analysisResult.overviewURL})
+
+*Generated from chat on: ${new Date().toISOString()}*
+`;
+
+        await this.uploadFile({
+            workspaceId: action.workspace.id,
+            path: `wallet-analysis/chat-${addressMatch[0]}.md`,
+            file: markdownContent,
+            skipSummarizer: false
+        });
+        
+        await this.sendChatMessage({
+            workspaceId: action.workspace.id,
+            agentId: action.me.id,
+            message: analysisResult.chatGPTResponse
+        });
     } else if (lastMessage.includes('plan') || lastMessage.includes('analyze')) {
-        // If it's a planning request without an address
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
             message: "I'll help you analyze Ethereum wallet transactions. Please provide the Ethereum wallet address you'd like to analyze (it should start with 0x followed by 40 characters)."
         });
     } else {
-        // For any other message, ask for the address
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
@@ -92,9 +111,6 @@ agent.respondToChat = async function(action) {
         });
     }
 };
-
-
-*/
 
 agent.doTask = async function(action) {
     const task = action.task;
@@ -138,6 +154,25 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
+                    // Save analysis to markdown file
+                    const markdownContent = `# Wallet Analysis Report
+## Address: ${addressMatch[0]}
+${result.chatGPTResponse}
+
+## Detailed View
+[View Transaction Details](${result.overviewURL})
+
+*Generated on: ${new Date().toISOString()}*
+`;
+
+                    await this.uploadFile({
+                        workspaceId: action.workspace.id,
+                        path: `wallet-analysis/${addressMatch[0]}.md`,
+                        file: markdownContent,
+                        taskIds: [task.id],
+                        skipSummarizer: false
+                    });
+
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
@@ -161,6 +196,25 @@ agent.doTask = async function(action) {
         if (addressMatch) {
             console.log("[doTask] Processing address from task input:", addressMatch[0]);
             const result = await summarizeTokenTransactions(addressMatch[0]);
+            
+            // Save analysis to markdown file
+            const markdownContent = `# Wallet Analysis Report
+## Address: ${addressMatch[0]}
+${result.chatGPTResponse}
+
+## Detailed View
+[View Transaction Details](${result.overviewURL})
+
+*Generated on: ${new Date().toISOString()}*
+`;
+
+            await this.uploadFile({
+                workspaceId: action.workspace.id,
+                path: `wallet-analysis/${addressMatch[0]}.md`,
+                file: markdownContent,
+                taskIds: [task.id],
+                skipSummarizer: false
+            });
             
             await this.completeTask({
                 workspaceId: action.workspace.id,
