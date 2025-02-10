@@ -154,7 +154,7 @@ agent.doTask = async function(action) {
             addressMatch = task.input.match(/0x[a-fA-F0-9]{40}/i);
             console.log("[doTask] Checking address from task input:", {
                 input: task.input,
-                address: addressMatch ? addressMatch[0] : null
+¢                address: addressMatch ? addressMatch[0] : null
             });
         }
 
