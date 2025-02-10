@@ -112,15 +112,23 @@ agent.doTask = async function(action) {
             const fileName = `analysis_${address}_${timestamp}.md`;
             
             try {
+                // Create a proper file upload request
+                const fileData = {
+                    path: `reports/${fileName}`,
+                    content: markdownContent,
+                    format: 'markdown'
+                };
+
+                // Using the uploadFile method from the SDK
                 await this.uploadFile({
                     workspaceId: action.workspace.id,
-                    path: `reports/${fileName}`,
-                    file: markdownContent,
+                    path: fileData.path,
+                    file: Buffer.from(fileData.content), // Convert string to Buffer
                     taskIds: [task.id],
-                    skipSummarizer: true // Skip summarization since it's already formatted
+                    skipSummarizer: true
                 });
                 
-                console.log(`[doTask] Analysis saved to file: reports/${fileName}`);
+                console.log(`[doTask] Analysis saved to file: ${fileData.path}`);
                 return fileName;
             } catch (error) {
                 console.error('[doTask] Error saving analysis to file:', error);
