@@ -213,19 +213,22 @@ ${result.chatGPTResponse}
             const fileName = generateAnalysisFileName(addressMatch[0]);
             
             try {
-                // Convert markdown content to Base64
-                const fileContent = Buffer.from(markdownOutput).toString('base64');
+                // Create the markdown output
+                const markdownOutput = `# Wallet Analysis Report
+// ...existing markdown template...`;
 
-                // Upload file to workspace with correct parameters according to agent.d.ts
+                const fileName = generateAnalysisFileName(addressMatch[0]);
+
+                // Upload file - Fixed according to UploadFileParams interface
                 await this.uploadFile({
                     workspaceId: action.workspace.id,
-                    path: fileName,
-                    file: markdownOutput, // Changed: use 'file' instead of 'content'
-                    taskIds: [task.id],
-                    skipSummarizer: true // This is a valid parameter
+                    path: `reports/${fileName}`, // Add a directory prefix for better organization
+                    file: markdownOutput, // Just pass the string directly, no Base64 needed
+                    taskIds: task.id, // Can be a single number
+                    skipSummarizer: true
                 });
 
-                // Complete task (no need to include files array as it's not in the interface)
+                // Complete task
                 await this.completeTask({
                     workspaceId: action.workspace.id,
                     taskId: task.id,
