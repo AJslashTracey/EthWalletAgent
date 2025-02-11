@@ -32,6 +32,7 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
+            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
             if (!isValidAddress) {
@@ -41,66 +42,46 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                // Save the analysis results to a file if we have a workspace context
+                // Upload the analysis results as a file
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const analysisContent = `# Wallet Analysis Report - ${args.address}
+Generated: ${new Date().toISOString()}
+
+## Analysis Summary
+${result.chatGPTResponse}
+
+## Transaction Overview
+View detailed transactions at: ${result.overviewURL}
+`;
+
+                // Only upload file if we have workspace context
                 if (action?.workspace?.id) {
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const fileName = `wallet_analysis_${args.address.substring(0, 8)}_${timestamp}.md`;
-                    
-                    // Format the content with markdown
-                    const fileContent = `# Ethereum Wallet Analysis Report\n\n` +
-                        `## Wallet Address\n${args.address}\n\n` +
-                        `## Analysis Date\n${new Date().toLocaleString()}\n\n` +
-                        `## Transaction Summary\n${result.chatGPTResponse}\n\n` +
-                        `## Detailed View\n[View on Explorer](${result.overviewURL})\n`;
-
                     try {
-                        // Upload file using the SDK's uploadFile method
-                        const uploadResult = await this.uploadFile({
+                        await agent.uploadFile({
                             workspaceId: action.workspace.id,
-                            path: `analyses/${fileName}`,
-                            file: fileContent,
-                            taskIds: action.task?.id ? [action.task.id] : undefined,
-                            skipSummarizer: true // Since we already have a GPT summary
+                            path: `analysis/${args.address}_${timestamp}.md`,
+                            file: analysisContent,
+                            taskIds: action.task ? [action.task.id] : undefined,
+                            skipSummarizer: false // Let OpenServ generate a summary
                         });
 
-                        console.log('File upload successful:', {
-                            fileName,
-                            workspaceId: action.workspace.id,
-                            taskId: action.task?.id,
-                            uploadResult
-                        });
-
-                        // Add a log to the task if we're in a task context
+                        // Add a log if this is part of a task
                         if (action.task?.id) {
-                            await this.addLogToTask({
+                            await agent.addLogToTask({
                                 workspaceId: action.workspace.id,
                                 taskId: action.task.id,
                                 severity: 'info',
                                 type: 'text',
-                                body: `Analysis saved to file: ${fileName}`
+                                body: `Analysis report saved as: analysis/${args.address}_${timestamp}.md`
                             });
                         }
-
-                        return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
-                               `📝 Analysis has been saved to: ${fileName}\n` +
-                               `🔍 View details: ${result.overviewURL}`;
                     } catch (uploadError) {
-                        console.error('File upload failed:', {
-                            error: uploadError.message,
-                            fileName,
-                            workspaceId: action.workspace.id
-                        });
-
-                        // Still return the analysis even if file save failed
-                        return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
-                               `⚠️ Note: Could not save analysis file (${uploadError.message})\n` +
-                               `🔍 View details: ${result.overviewURL}`;
+                        console.error('Error uploading analysis file:', uploadError);
+                        // Continue execution - file upload is not critical for analysis
                     }
                 }
-                
-                // If no workspace context, just return the analysis
-                return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
-                       `🔍 View details: ${result.overviewURL}`;
+
+                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
@@ -189,6 +170,30 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
+                    // Save analysis as a file
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const analysisContent = `# Wallet Analysis Report - ${addressMatch[0]}
+Generated: ${new Date().toISOString()}
+
+## Analysis Summary
+${result.chatGPTResponse}
+
+## Transaction Overview
+View detailed transactions at: ${result.overviewURL}
+`;
+
+                    try {
+                        await this.uploadFile({
+                            workspaceId: action.workspace.id,
+                            path: `analysis/${addressMatch[0]}_${timestamp}.md`,
+                            file: analysisContent,
+                            taskIds: [task.id],
+                            skipSummarizer: false
+                        });
+                    } catch (uploadError) {
+                        console.error('Error uploading analysis file:', uploadError);
+                    }
+                    
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
@@ -213,6 +218,30 @@ agent.doTask = async function(action) {
         if (addressMatch) {
             console.log("[doTask] Processing address from task input:", addressMatch[0]);
             const result = await summarizeTokenTransactions(addressMatch[0]);
+            
+            // Save analysis as a file
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const analysisContent = `# Wallet Analysis Report - ${addressMatch[0]}
+Generated: ${new Date().toISOString()}
+
+## Analysis Summary
+${result.chatGPTResponse}
+
+## Transaction Overview
+View detailed transactions at: ${result.overviewURL}
+`;
+
+            try {
+                await this.uploadFile({
+                    workspaceId: action.workspace.id,
+                    path: `analysis/${addressMatch[0]}_${timestamp}.md`,
+                    file: analysisContent,
+                    taskIds: [task.id],
+                    skipSummarizer: false
+                });
+            } catch (uploadError) {
+                console.error('Error uploading analysis file:', uploadError);
+            }
             
             await this.completeTask({
                 workspaceId: action.workspace.id,
