@@ -33,6 +33,7 @@ agent.addCapability({
     async run({ args, action }, messages) {
         try {
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
+
             if (!isValidAddress) {
                 return `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`;
             }
@@ -40,27 +41,38 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                // Create timestamp and format the filename
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const shortAddress = `${args.address.slice(0, 6)}...${args.address.slice(-4)}`;
-                const filename = `/analysis/${shortAddress}_${timestamp}.md`;
+                // Save the analysis results to a file if we have a workspace context
+                if (action?.workspace?.id) {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const fileName = `${args.address}_analysis_${timestamp}.md`;
+                    const filePath = `analysis/${fileName}`;
+                    
+                    // Format the content with markdown
+                    const fileContent = `# Wallet Analysis: ${args.address}\n\n` +
+                        `Analysis performed: ${new Date().toLocaleString()}\n\n` +
+                        `## Summary\n${result.chatGPTResponse}\n\n` +
+                        `## Links\n- [Detailed View](${result.overviewURL})\n`;
 
-                // Add metadata header to the content
-                const contentWithMetadata = `---
-address: ${args.address}
-timestamp: ${new Date().toISOString()}
-overviewUrl: ${result.overviewURL}
----
+                    try {
+                        await this.uploadFile({
+                            workspaceId: action.workspace.id,
+                            path: filePath,
+                            file: fileContent,
+                            taskIds: action.task ? [action.task.id] : undefined,
+                            skipSummarizer: true // We already have a summary
+                        });
 
-${result.chatGPTResponse}`;
-
-                await agent.uploadFile({
-                    workspaceId: 1,
-                    path: filename,
-                    file: contentWithMetadata,
-                    skipSummarizer: true 
-                });
-                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}\nAnalysis saved as: ${filename}`;
+                        // Return the analysis with a link to the saved file
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nAnalysis has been saved to: ${fileName}\nFor a detailed view, check: ${result.overviewURL}`;
+                    } catch (uploadError) {
+                        console.error('Failed to save analysis file:', uploadError);
+                        // Still return the analysis even if save failed
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}\n\n(Note: Failed to save analysis file: ${uploadError.message})`;
+                    }
+                }
+                
+                // If no workspace context, just return the analysis
+                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
