@@ -32,6 +32,7 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
+            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
             if (!isValidAddress) {
@@ -41,30 +42,6 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                // Upload analysis results as a file
-                if (action?.workspace?.id && action?.task?.id) {
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const fileName = `analysis_${args.address}_${timestamp}.md`;
-                    
-                    const fileContent = `# Wallet Analysis for ${args.address}
-                        
-## Analysis Results
-${result.chatGPTResponse}
-
-## Transaction Overview
-View detailed transactions: ${result.overviewURL}
-
-Generated on: ${new Date().toISOString()}`;
-
-                    await this.uploadFile({
-                        workspaceId: action.workspace.id,
-                        path: fileName,
-                        file: fileContent,
-                        taskIds: [action.task.id],
-                        skipSummarizer: false
-                    });
-                }
-
                 return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
@@ -154,32 +131,10 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
-                    // Generate and upload analysis file
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const fileName = `analysis_${addressMatch[0]}_${timestamp}.md`;
-                    
-                    const fileContent = `# Wallet Analysis for ${addressMatch[0]}
-                        
-## Analysis Results
-${result.chatGPTResponse}
-
-## Transaction Overview
-View detailed transactions: ${result.overviewURL}
-
-Generated on: ${new Date().toISOString()}`;
-
-                    await this.uploadFile({
-                        workspaceId: action.workspace.id,
-                        path: fileName,
-                        file: fileContent,
-                        taskIds: [task.id],
-                        skipSummarizer: false
-                    });
-
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
-                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})\n\n📄 Analysis has been saved to \`${fileName}\``
+                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
                     });
                     return;
                 }
@@ -201,32 +156,10 @@ Generated on: ${new Date().toISOString()}`;
             console.log("[doTask] Processing address from task input:", addressMatch[0]);
             const result = await summarizeTokenTransactions(addressMatch[0]);
             
-            // Generate and upload analysis file
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const fileName = `analysis_${addressMatch[0]}_${timestamp}.md`;
-            
-            const fileContent = `# Wallet Analysis for ${addressMatch[0]}
-                
-## Analysis Results
-${result.chatGPTResponse}
-
-## Transaction Overview
-View detailed transactions: ${result.overviewURL}
-
-Generated on: ${new Date().toISOString()}`;
-
-            await this.uploadFile({
-                workspaceId: action.workspace.id,
-                path: fileName,
-                file: fileContent,
-                taskIds: [task.id],
-                skipSummarizer: false
-            });
-
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
-                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})\n\n📄 Analysis has been saved to \`${fileName}\``
+                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
         } else {
             console.log("[doTask] No valid address found, requesting human assistance");
