@@ -6,7 +6,7 @@ import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 // Load environment variables
 dotenv.config();
 
-const requiredEnvVars = ['OPENSERV_API_KEY', 'ETHERSCAN_API_KEY', 'OPENAI_API_KEY'];
+const requiredEnvVars = ['OPENSERV_API_KEY_', 'ETHERSCAN_API_KEY', 'OPENAI_API_KEY'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         throw new Error(`${envVar} environment variable is required`);
