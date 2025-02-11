@@ -44,35 +44,63 @@ agent.addCapability({
                 // Save the analysis results to a file if we have a workspace context
                 if (action?.workspace?.id) {
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const fileName = `${args.address}_analysis_${timestamp}.md`;
-                    const filePath = `analysis/${fileName}`;
+                    const fileName = `wallet_analysis_${args.address.substring(0, 8)}_${timestamp}.md`;
                     
                     // Format the content with markdown
-                    const fileContent = `# Wallet Analysis: ${args.address}\n\n` +
-                        `Analysis performed: ${new Date().toLocaleString()}\n\n` +
-                        `## Summary\n${result.chatGPTResponse}\n\n` +
-                        `## Links\n- [Detailed View](${result.overviewURL})\n`;
+                    const fileContent = `# Ethereum Wallet Analysis Report\n\n` +
+                        `## Wallet Address\n${args.address}\n\n` +
+                        `## Analysis Date\n${new Date().toLocaleString()}\n\n` +
+                        `## Transaction Summary\n${result.chatGPTResponse}\n\n` +
+                        `## Detailed View\n[View on Explorer](${result.overviewURL})\n`;
 
                     try {
-                        await this.uploadFile({
+                        // Upload file using the SDK's uploadFile method
+                        const uploadResult = await this.uploadFile({
                             workspaceId: action.workspace.id,
-                            path: filePath,
+                            path: `analyses/${fileName}`,
                             file: fileContent,
-                            taskIds: action.task ? [action.task.id] : undefined,
-                            skipSummarizer: true // We already have a summary
+                            taskIds: action.task?.id ? [action.task.id] : undefined,
+                            skipSummarizer: true // Since we already have a GPT summary
                         });
 
-                        // Return the analysis with a link to the saved file
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nAnalysis has been saved to: ${fileName}\nFor a detailed view, check: ${result.overviewURL}`;
+                        console.log('File upload successful:', {
+                            fileName,
+                            workspaceId: action.workspace.id,
+                            taskId: action.task?.id,
+                            uploadResult
+                        });
+
+                        // Add a log to the task if we're in a task context
+                        if (action.task?.id) {
+                            await this.addLogToTask({
+                                workspaceId: action.workspace.id,
+                                taskId: action.task.id,
+                                severity: 'info',
+                                type: 'text',
+                                body: `Analysis saved to file: ${fileName}`
+                            });
+                        }
+
+                        return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
+                               `📝 Analysis has been saved to: ${fileName}\n` +
+                               `🔍 View details: ${result.overviewURL}`;
                     } catch (uploadError) {
-                        console.error('Failed to save analysis file:', uploadError);
-                        // Still return the analysis even if save failed
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}\n\n(Note: Failed to save analysis file: ${uploadError.message})`;
+                        console.error('File upload failed:', {
+                            error: uploadError.message,
+                            fileName,
+                            workspaceId: action.workspace.id
+                        });
+
+                        // Still return the analysis even if file save failed
+                        return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
+                               `⚠️ Note: Could not save analysis file (${uploadError.message})\n` +
+                               `🔍 View details: ${result.overviewURL}`;
                     }
                 }
                 
                 // If no workspace context, just return the analysis
-                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
+                return `Analysis complete! 📊\n\n${result.chatGPTResponse}\n\n` +
+                       `🔍 View details: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
