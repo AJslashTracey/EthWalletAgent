@@ -19,7 +19,7 @@ const agent = new Agent({
        - Major wallet activity
        - Significant token transfers
     3. Prepares concise and formatted summaries suitable for reporting or sharing.`,
-    apiKey: process.env.OPENSERV_API_KEY,
+    apiKey: process.env.OPENSERV_API_KEY_,
 });
 
 agent.addCapabilities([
