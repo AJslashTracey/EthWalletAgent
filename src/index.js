@@ -11,26 +11,29 @@ dotenv.config();
 });
 
 const agent = new Agent({
-    systemPrompt: `Ethereum wallet analysis expert. Always validate addresses and attach reports.`
+    systemPrompt: `Ethereum wallet analysis expert. Validate addresses and attach Markdown reports.`
 });
 
-// Unified Markdown generator
 const generateMarkdownReport = (address, result) => {
     return `# Ethereum Wallet Analysis Report
-**Address:** \`${address}\`  
-**Date:** ${new Date().toLocaleDateString()}
+**Address:** [${address}](${result.overviewURL})
+**Generated at:** ${new Date().toISOString()}
 
 ## Summary
 ${result.chatGPTResponse}
 
-## Quick Links
-- [View on Etherscan](${result.overviewURL})
-- [Raw Transaction Data](${result.rawDataURL || '#'})`;
+## Transaction Statistics
+- Total transactions: ${result.totalTransactions || 'N/A'}
+- Unique tokens: ${result.uniqueTokens || 'N/A'}
+- First transaction: ${result.firstTxDate || 'N/A'}
+- Last transaction: ${result.lastTxDate || 'N/A'}
+
+[View full transaction history](${result.overviewURL})`;
 };
 
 agent.addCapability({
     name: 'analyzeWallet',
-    description: 'Analyze Ethereum wallet transactions',
+    description: 'Analyze Ethereum wallet transactions and generate report',
     schema: z.object({
         address: z.string().regex(/^0x[a-fA-F0-9]{40}$/)
     }),
@@ -38,18 +41,21 @@ agent.addCapability({
         try {
             const { address } = args;
             const result = await summarizeTokenTransactions(address);
-            
+            const markdownContent = generateMarkdownReport(address, result);
+
+            // According to SDK docs: Return files array with content
             return {
-                message: `✅ Analysis complete for ${address}\n${result.chatGPTResponse}`,
+                message: `Analysis complete for ${address}`,
                 files: [{
-                    name: `report-${address}.md`,
-                    content: generateMarkdownReport(address, result)
+                    name: `wallet-analysis-${address}.md`,
+                    content: markdownContent,
+                    mimeType: 'text/markdown'
                 }]
             };
         } catch (error) {
             return {
-                message: `❌ Error: ${error.message}`,
-                files: [] // Ensure files array exists even on error
+                message: `Error: ${error.message}`,
+                files: [] // Maintain consistent response structure
             };
         }
     }
@@ -66,32 +72,35 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        // Address resolution logic
-        const getAddress = () => {
+        // Address extraction logic
+        const extractAddress = () => {
             const sources = [
-                task.humanAssistanceRequests?.[0]?.humanResponse,
-                task.input
+                task.input,
+                ...(task.humanAssistanceRequests || []).map(r => r.humanResponse)
             ];
-            
-            for (const source of sources) {
-                const match = source?.match(/0x[a-fA-F0-9]{40}/i);
+
+            for (const text of sources) {
+                const match = text?.match(/0x[a-fA-F0-9]{40}/i);
                 if (match) return match[0];
             }
             return null;
         };
 
-        const address = getAddress();
-        
+        const address = extractAddress();
+
         if (address) {
             const result = await summarizeTokenTransactions(address);
-            
+            const markdownContent = generateMarkdownReport(address, result);
+
+            // Complete task with file attachment
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
-                output: `**Analysis Results for ${address}**\n${result.chatGPTResponse}`,
+                output: `**Analysis completed for ${address}**`,
                 files: [{
                     name: `task-report-${address}.md`,
-                    content: generateMarkdownReport(address, result)
+                    content: markdownContent,
+                    mimeType: 'text/markdown'
                 }]
             });
         } else {
@@ -101,7 +110,7 @@ agent.doTask = async function(action) {
                 type: 'text',
                 question: "Please provide a valid Ethereum address (0x...)",
                 agentDump: {
-                    validationPattern: "/^0x[a-fA-F0-9]{40}$/"
+                    validationPattern: "^0x[a-fA-F0-9]{40}$"
                 }
             });
         }
@@ -114,7 +123,7 @@ agent.doTask = async function(action) {
     }
 };
 
-// Chat handler
+// Updated chat handler with proper file attachment
 agent.respondToChat = async function(action) {
     const lastMessage = action.messages.slice(-1)[0].message;
     const addressMatch = lastMessage.match(/0x[a-fA-F0-9]{40}/i);
@@ -132,12 +141,15 @@ agent.respondToChat = async function(action) {
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
-            message: "Please provide an Ethereum address to analyze (format: 0x...)",
+            message: "Please provide a valid Ethereum address (format: 0x...)",
             files: [] // Maintain consistent response structure
         });
     }
 };
 
 agent.start()
-    .then(() => console.log(`Agent running on ${process.env.PORT || 3000}`))
-    .catch(console.error);
+    .then(() => console.log(`Agent running on port ${process.env.PORT || 8080}`))
+    .catch(error => {
+        console.error("Agent startup failed:", error);
+        process.exit(1);
+    });
