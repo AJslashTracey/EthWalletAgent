@@ -32,9 +32,7 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
-            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
-
             if (!isValidAddress) {
                 return `The address "${args.address}" is not a valid Ethereum address. Please provide an address in the format 0x followed by 40 hexadecimal characters.`;
             }
@@ -42,7 +40,27 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
+                // Create timestamp and format the filename
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const shortAddress = `${args.address.slice(0, 6)}...${args.address.slice(-4)}`;
+                const filename = `/analysis/${shortAddress}_${timestamp}.md`;
+
+                // Add metadata header to the content
+                const contentWithMetadata = `---
+address: ${args.address}
+timestamp: ${new Date().toISOString()}
+overviewUrl: ${result.overviewURL}
+---
+
+${result.chatGPTResponse}`;
+
+                await agent.uploadFile({
+                    workspaceId: 1,
+                    path: filename,
+                    file: contentWithMetadata,
+                    skipSummarizer: true 
+                });
+                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}\nAnalysis saved as: ${filename}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
