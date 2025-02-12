@@ -32,6 +32,7 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
+            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
             if (!isValidAddress) {
@@ -41,81 +42,11 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                // Save analysis to a file if we have a workspace context
-                if (action?.workspace) {
-                    console.log("[analyzeWallet] Have workspace context:", action.workspace.id);
-                    
-                    try {
-                        // First check existing files
-                        console.log("[analyzeWallet] Checking existing files in workspace");
-                        const existingFiles = await this.getFiles({
-                            workspaceId: action.workspace.id
-                        });
-                        console.log("[analyzeWallet] Existing files:", existingFiles);
-
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                        const filename = `analysis_${args.address}_${timestamp}.md`;
-                        console.log("[analyzeWallet] Will create file:", filename);
-
-                        // Create a formatted analysis report
-                        const analysisReport = `# Wallet Analysis Report
-## Address: ${args.address}
-## Date: ${new Date().toISOString()}
-
-${result.chatGPTResponse}
-
-## Links
-- [Detailed Transaction View](${result.overviewURL})
-`;
-
-                        console.log("[analyzeWallet] Attempting to upload file");
-                        await this.uploadFile({
-                            workspaceId: action.workspace.id,
-                            path: `reports/${filename}`,
-                            file: analysisReport,
-                            taskIds: action.task ? [action.task.id] : undefined,
-                            skipSummarizer: false
-                        });
-                        console.log("[analyzeWallet] File upload successful");
-
-                        // Verify file was uploaded
-                        const updatedFiles = await this.getFiles({
-                            workspaceId: action.workspace.id
-                        });
-                        console.log("[analyzeWallet] Updated files list:", updatedFiles);
-
-                        // Check if our file exists in the updated list
-                        const fileExists = updatedFiles.some(f => f.path === `reports/${filename}`);
-                        console.log("[analyzeWallet] File exists in workspace:", fileExists);
-
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\n${
-                            fileExists 
-                                ? `A detailed report has been saved as ${filename}\n`
-                                : 'Note: File save operation completed but file not found in workspace.\n'
-                        }Transaction overview: ${result.overviewURL}`;
-
-                    } catch (error) {
-                        console.error('[analyzeWallet] Error during file operations:', {
-                            error: error.message,
-                            stack: error.stack,
-                            workspaceId: action.workspace.id
-                        });
-                        // Still return the analysis even if file save failed
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nNote: Could not save detailed report due to error: ${error.message}\nTransaction overview: ${result.overviewURL}`;
-                    }
-                } else {
-                    console.log("[analyzeWallet] No workspace context available for file operations");
-                    return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
-                }
+                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
         } catch (error) {
-            console.error('[analyzeWallet] Error during analysis:', {
-                error: error.message,
-                stack: error.stack,
-                address: args.address
-            });
             if (error.message.includes('ETHERSCAN_API_KEY')) {
                 return 'Internal configuration error. Please contact support.';
             }
@@ -200,43 +131,11 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
-                    // Save analysis to file
-                    try {
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                        const filename = `analysis_${addressMatch[0]}_${timestamp}.md`;
-                        console.log("[doTask] Saving analysis to file:", filename);
-
-                        const analysisReport = `# Wallet Analysis Report
-## Address: ${addressMatch[0]}
-## Date: ${new Date().toISOString()}
-
-${result.chatGPTResponse}
-
-## Links
-- [Detailed Transaction View](${result.overviewURL})`;
-
-                        await this.uploadFile({
-                            workspaceId: action.workspace.id,
-                            path: `reports/${filename}`,
-                            file: analysisReport,
-                            taskIds: [task.id],
-                            skipSummarizer: false
-                        });
-                        console.log("[doTask] Analysis file saved successfully");
-
-                        await this.completeTask({
-                            workspaceId: action.workspace.id,
-                            taskId: task.id,
-                            output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n📄 [Analysis Report](reports/${filename})\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
-                        });
-                    } catch (fileError) {
-                        console.error("[doTask] Error saving analysis file:", fileError);
-                        await this.completeTask({
-                            workspaceId: action.workspace.id,
-                            taskId: task.id,
-                            output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\nNote: Failed to save analysis report.\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
-                        });
-                    }
+                    await this.completeTask({
+                        workspaceId: action.workspace.id,
+                        taskId: task.id,
+                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                    });
                     return;
                 }
             }
