@@ -128,6 +128,7 @@ async function summarizeTokenTransactions(walletAddress) {
     }
 
     const tokenData = await runApp(walletAddress);
+    console.log(tokenData)
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     console.log("Updated transactions:", updatedTransaction);
@@ -152,6 +153,7 @@ async function summarizeTokenTransactions(walletAddress) {
       chatGPTResponse: gptResponse.choices[0].message.content,
       overviewURL
     };
+    
 
   } catch (error) {
     if (error.response?.status === 429) {
