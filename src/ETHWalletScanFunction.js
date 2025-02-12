@@ -48,8 +48,9 @@ async function summarizeTokenTransactions(walletAddress) {
       await Moralis.start({
         apiKey: process.env.MORALIS_API_KEY
       });
-      
-      const address = walletAddress
+
+      const address = walletAddress;
+      console.log("Address for port API call", address)
       const chain = EvmChain.ETHEREUM;
 
       console.log("Fetching token balances...");
