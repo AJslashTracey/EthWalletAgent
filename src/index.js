@@ -43,11 +43,22 @@ agent.addCapability({
             if (result.chatGPTResponse) {
                 // Save analysis to a file if we have a workspace context
                 if (action?.workspace) {
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    const filename = `analysis_${args.address}_${timestamp}.md`;
+                    console.log("[analyzeWallet] Have workspace context:", action.workspace.id);
                     
-                    // Create a formatted analysis report
-                    const analysisReport = `# Wallet Analysis Report
+                    try {
+                        // First check existing files
+                        console.log("[analyzeWallet] Checking existing files in workspace");
+                        const existingFiles = await this.getFiles({
+                            workspaceId: action.workspace.id
+                        });
+                        console.log("[analyzeWallet] Existing files:", existingFiles);
+
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        const filename = `analysis_${args.address}_${timestamp}.md`;
+                        console.log("[analyzeWallet] Will create file:", filename);
+
+                        // Create a formatted analysis report
+                        const analysisReport = `# Wallet Analysis Report
 ## Address: ${args.address}
 ## Date: ${new Date().toISOString()}
 
@@ -57,7 +68,7 @@ ${result.chatGPTResponse}
 - [Detailed Transaction View](${result.overviewURL})
 `;
 
-                    try {
+                        console.log("[analyzeWallet] Attempting to upload file");
                         await this.uploadFile({
                             workspaceId: action.workspace.id,
                             path: `reports/${filename}`,
@@ -65,21 +76,46 @@ ${result.chatGPTResponse}
                             taskIds: action.task ? [action.task.id] : undefined,
                             skipSummarizer: false
                         });
+                        console.log("[analyzeWallet] File upload successful");
 
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nA detailed report has been saved as ${filename}\nTransaction overview: ${result.overviewURL}`;
+                        // Verify file was uploaded
+                        const updatedFiles = await this.getFiles({
+                            workspaceId: action.workspace.id
+                        });
+                        console.log("[analyzeWallet] Updated files list:", updatedFiles);
+
+                        // Check if our file exists in the updated list
+                        const fileExists = updatedFiles.some(f => f.path === `reports/${filename}`);
+                        console.log("[analyzeWallet] File exists in workspace:", fileExists);
+
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\n${
+                            fileExists 
+                                ? `A detailed report has been saved as ${filename}\n`
+                                : 'Note: File save operation completed but file not found in workspace.\n'
+                        }Transaction overview: ${result.overviewURL}`;
+
                     } catch (error) {
-                        console.error('Error saving analysis file:', error);
+                        console.error('[analyzeWallet] Error during file operations:', {
+                            error: error.message,
+                            stack: error.stack,
+                            workspaceId: action.workspace.id
+                        });
                         // Still return the analysis even if file save failed
-                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nNote: Could not save detailed report due to error.\nTransaction overview: ${result.overviewURL}`;
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nNote: Could not save detailed report due to error: ${error.message}\nTransaction overview: ${result.overviewURL}`;
                     }
+                } else {
+                    console.log("[analyzeWallet] No workspace context available for file operations");
+                    return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
                 }
-
-                // If no workspace context, just return the analysis
-                return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
             }
         } catch (error) {
+            console.error('[analyzeWallet] Error during analysis:', {
+                error: error.message,
+                stack: error.stack,
+                address: args.address
+            });
             if (error.message.includes('ETHERSCAN_API_KEY')) {
                 return 'Internal configuration error. Please contact support.';
             }
