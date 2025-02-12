@@ -134,7 +134,7 @@ agent.doTask = async function(action) {
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
-                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                        output: `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
                     });
                     return;
                 }
@@ -159,7 +159,7 @@ agent.doTask = async function(action) {
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
-                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                output: `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
         } else {
             console.log("[doTask] No valid address found, requesting human assistance");
@@ -167,7 +167,7 @@ agent.doTask = async function(action) {
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
+                question: "⚠️ I need a valid Ethereum wallet address to proceed.\n\n💡 Please provide one in this format:\n 0x followed by 40 hexadecimal characters.",
                 agentDump: {
                     conversationHistory: action.messages,
                     expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
