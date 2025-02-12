@@ -15,6 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@moralisweb3/common-evm-utils": "^2.27.2",
     "@openfeature/server-sdk": "^1.17.0",
     "@openserv-labs/sdk": "^1.1.0",
     "@the-convocation/twitter-scraper": "^0.15.1",
@@ -22,6 +23,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "form-data": "^4.0.1",
+    "moralis": "^2.27.2",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.9",
     "openai": "^4.79.1"

@@ -1,6 +1,10 @@
 import axios from "axios";
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import Moralis from 'moralis';
+import { EvmChain } from '@moralisweb3/common-evm-utils';
+import fs from 'fs'; 
+
 export { summarizeTokenTransactions };
 
 dotenv.config(); // Ensure environment variables are loaded
@@ -15,8 +19,6 @@ const apiKeys = [
   process.env.ETHERSCAN_API_KEY5,
 ].filter(Boolean);
 
-
-
 if (apiKeys.length === 0) {
   throw new Error("No Etherscan API keys found in environment variables!");
 }
@@ -24,8 +26,8 @@ if (apiKeys.length === 0) {
 let apiIndex = 0;
 
 async function getTokenBalance(walletAddress, contractAddress) {
-  const apiKey = apiKeys[apiIndex]; // Get current API key
-  apiIndex = (apiIndex + 1) % apiKeys.length; // Rotate API key
+  const apiKey = apiKeys[apiIndex];
+  apiIndex = (apiIndex + 1) % apiKeys.length; 
 
   const url = `https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${walletAddress}&tag=latest&apikey=${apiKey}`;
   console.log(`Using API Key ${apiIndex + 1}: ${url}`);
@@ -41,6 +43,44 @@ async function getTokenBalance(walletAddress, contractAddress) {
 }
 
 async function summarizeTokenTransactions(walletAddress) {
+  const runApp = async (walletAddress) => {
+    try {
+      await Moralis.start({
+        apiKey: process.env.MORALIS_API_KEY
+      });
+
+      const chain = EvmChain.ETHEREUM;
+
+      console.log("Fetching token balances...");
+
+      const response = await Moralis.EvmApi.token.getWalletTokenBalances({
+        walletAddress,
+        chain,
+      });
+
+      console.log("Processing token data...");
+
+      
+      const tokenData = response.toJSON().map((token) => ({
+        name: token.name || "Unknown Token",
+        balance: parseFloat(token.balance) / Math.pow(10, token.decimals),
+        percentage_of_total_supply: token.percentage_relative_to_total_supply || 0,
+        security_score: token.security_score || "Not Available", 
+      }));
+
+      console.log("Formatted Token Data:", tokenData);
+
+      const outputPath = "./tokens.json"; 
+      fs.writeFileSync(outputPath, JSON.stringify(tokenData, null, 2));
+      console.log(`Token data saved to ${outputPath}!`);
+
+      return tokenData; 
+    } catch (error) {
+      console.error("Error fetching or processing token balances:", error);
+      return []; 
+    }
+  };
+
   try {
     if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
       throw new Error("Invalid Ethereum address format");
@@ -54,7 +94,11 @@ async function summarizeTokenTransactions(walletAddress) {
     console.log(etherscanUrl);
     const overviewURL = `https://platform.spotonchain.ai/en/profile?address=${normalizedAddress}`;
 
-    const response = await axios.get(etherscanUrl, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    
+    const response = await axios.get(etherscanUrl, {
+      timeout: 10000,
+      headers: { 'Accept': 'application/json' }
+    });
 
     if (response.data.status !== "1" || response.data.message === "NOTOK") {
       throw new Error(`Etherscan API error: ${response.data.result || response.data.message}`);
@@ -65,6 +109,7 @@ async function summarizeTokenTransactions(walletAddress) {
       return { chatGPTResponse: "No recent token transactions found.", overviewURL };
     }
 
+    
     const simplifiedTx = transactions.slice(0, 10).map(tx => ({
       flow: tx.from.toLowerCase() === normalizedAddress ? 'outflow' : 'inflow',
       tokenName: tx.tokenName,
@@ -73,6 +118,7 @@ async function summarizeTokenTransactions(walletAddress) {
       contractAddress: tx.contractAddress
     }));
 
+    
     const updatedTransaction = [];
     for (const tx of simplifiedTx) {
       const balance = await getTokenBalance(normalizedAddress, tx.contractAddress);
@@ -81,19 +127,31 @@ async function summarizeTokenTransactions(walletAddress) {
       }
     }
 
+    const tokenData = await runApp(walletAddress);
+
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     console.log("Updated transactions:", updatedTransaction);
+
     const gptResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Summarize token transactions 1. What the current token holdings are 2. What tokens have been bought/sold within the last 1/3/7 days. just use the tokens in transactions as which the wallet is holding" },
-        { role: "user", content: `Analyze these transactions: ${JSON.stringify(updatedTransaction)}` }
+        {
+          role: "system",
+          content: "Summarize token transactions: 1) Current token holdings 2) Tokens bought/sold in last 1/3/7 days. Use only tokens that appear in both the runApp output and the transactions."
+        },
+        {
+          role: "user",
+          content: `Transactions: ${JSON.stringify(updatedTransaction)}\nToken Data: ${JSON.stringify(tokenData)}`
+        }
       ],
       max_tokens: 300,
       temperature: 0.3
     });
 
-    return { chatGPTResponse: gptResponse.choices[0].message.content, overviewURL };
+    return {
+      chatGPTResponse: gptResponse.choices[0].message.content,
+      overviewURL
+    };
 
   } catch (error) {
     if (error.response?.status === 429) {
