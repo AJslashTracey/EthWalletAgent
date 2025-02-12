@@ -32,7 +32,6 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
-            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
             if (!isValidAddress) {
@@ -42,25 +41,40 @@ agent.addCapability({
             const result = await summarizeTokenTransactions(args.address);
             
             if (result.chatGPTResponse) {
-                // Save output to file using agent.uploadFile
-                const filename = `wallet_analysis_${args.address}.txt`;
-                const fileContent = `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
-                
-                // Ensure fileContent is a string
-                const fileContentString = String(fileContent);
-                
-                const uploadParams = {
-                    workspaceId: action.workspace.id,
-                    path: filename,
-                    file: fileContentString,
-                    taskIds: action.task?.id ? [action.task.id] : [], // Associate with the task if it exists
-                    skipSummarizer: true // Skip summarization to avoid extra processing
-                };
-                
-                console.log("uploadFile parameters:", uploadParams); // Log the parameters
-                
-                await agent.uploadFile(uploadParams);
+                // Save analysis to a file if we have a workspace context
+                if (action?.workspace) {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const filename = `analysis_${args.address}_${timestamp}.md`;
+                    
+                    // Create a formatted analysis report
+                    const analysisReport = `# Wallet Analysis Report
+## Address: ${args.address}
+## Date: ${new Date().toISOString()}
 
+${result.chatGPTResponse}
+
+## Links
+- [Detailed Transaction View](${result.overviewURL})
+`;
+
+                    try {
+                        await this.uploadFile({
+                            workspaceId: action.workspace.id,
+                            path: `reports/${filename}`,
+                            file: analysisReport,
+                            taskIds: action.task ? [action.task.id] : undefined,
+                            skipSummarizer: false
+                        });
+
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nA detailed report has been saved as ${filename}\nTransaction overview: ${result.overviewURL}`;
+                    } catch (error) {
+                        console.error('Error saving analysis file:', error);
+                        // Still return the analysis even if file save failed
+                        return `Analysis complete!\n\n${result.chatGPTResponse}\n\nNote: Could not save detailed report due to error.\nTransaction overview: ${result.overviewURL}`;
+                    }
+                }
+
+                // If no workspace context, just return the analysis
                 return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
                 return 'No recent token transactions found for this address.';
@@ -150,29 +164,10 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
-                    // Save output to file using agent.uploadFile
-                    const filename = `wallet_analysis_${addressMatch[0]}.txt`;
-                    const fileContent = `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`;
-                    
-                    // Ensure fileContent is a string
-                    const fileContentString = String(fileContent);
-                    
-                    const uploadParams = {
-                        workspaceId: action.workspace.id,
-                        path: filename,
-                        file: fileContentString,
-                        taskIds: [task.id], // Associate with the task
-                        skipSummarizer: true // Skip summarization to avoid extra processing
-                    };
-                    
-                    console.log("uploadFile parameters:", uploadParams); // Log the parameters
-                    
-                    await this.uploadFile(uploadParams);
-
                     await this.completeTask({
                         workspaceId: action.workspace.id,
                         taskId: task.id,
-                        output: `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
                     });
                     return;
                 }
@@ -194,29 +189,10 @@ agent.doTask = async function(action) {
             console.log("[doTask] Processing address from task input:", addressMatch[0]);
             const result = await summarizeTokenTransactions(addressMatch[0]);
             
-            // Save output to file using agent.uploadFile
-            const filename = `wallet_analysis_${addressMatch[0]}.txt`;
-            const fileContent = `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`;
-            
-            // Ensure fileContent is a string
-            const fileContentString = String(fileContent);
-            
-            const uploadParams = {
-                workspaceId: action.workspace.id,
-                path: filename,
-                file: fileContentString,
-                taskIds: [task.id], // Associate with the task
-                skipSummarizer: true // Skip summarization to avoid extra processing
-            };
-            
-            console.log("uploadFile parameters:", uploadParams); // Log the parameters
-            
-            await this.uploadFile(uploadParams);
-
             await this.completeTask({
                 workspaceId: action.workspace.id,
                 taskId: task.id,
-                output: `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
             });
         } else {
             console.log("[doTask] No valid address found, requesting human assistance");
@@ -224,7 +200,7 @@ agent.doTask = async function(action) {
                 workspaceId: action.workspace.id,
                 taskId: task.id,
                 type: 'text',
-                question: "⚠️ I need a valid Ethereum wallet address to proceed.\n\n💡 Please provide one in this format:\n 0x followed by 40 hexadecimal characters.",
+                question: "⚠️ I need a **valid Ethereum wallet address** to proceed.\n\n💡 Please provide one in this format:\n`0x` followed by **40 hexadecimal characters**.",
                 agentDump: {
                     conversationHistory: action.messages,
                     expectedFormat: "Ethereum address (0x followed by 40 hexadecimal characters).",
