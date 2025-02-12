@@ -67,13 +67,11 @@ async function runApp(walletAddress) {
 
     console.log("Processing token data...");
 
-    // Extract and normalize token data
     const tokenData = response.toJSON().map((token) => ({
-      name: token.name ? token.name.trim().replace(/\s+/g, ' ').toLowerCase() : "unknown_token",
+      name: token.name || "Unknown Token",
       balance: parseFloat(token.balance) / Math.pow(10, token.decimals),
       percentage_of_total_supply: token.percentage_relative_to_total_supply || 0,
       security_score: token.security_score || "Not Available", 
-      contractAddress: token.token_address || "unknown_contract"
     }));
 
     console.log("Formatted Token Data:", tokenData);
@@ -88,7 +86,6 @@ async function runApp(walletAddress) {
     return [];
   }
 }
-
 
 async function summarizeTokenTransactions(walletAddress) {
   try {
