@@ -46,13 +46,20 @@ agent.addCapability({
                 const filename = `wallet_analysis_${args.address}.txt`;
                 const fileContent = `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
                 
-                await agent.uploadFile({
+                // Ensure fileContent is a string
+                const fileContentString = String(fileContent);
+                
+                const uploadParams = {
                     workspaceId: action.workspace.id,
                     path: filename,
-                    file: fileContent,
+                    file: fileContentString,
                     taskIds: action.task?.id ? [action.task.id] : [], // Associate with the task if it exists
                     skipSummarizer: true // Skip summarization to avoid extra processing
-                });
+                };
+                
+                console.log("uploadFile parameters:", uploadParams); // Log the parameters
+                
+                await agent.uploadFile(uploadParams);
 
                 return `Analysis complete!\n\n${result.chatGPTResponse}\n\nFor a detailed view, check: ${result.overviewURL}`;
             } else {
@@ -147,13 +154,20 @@ agent.doTask = async function(action) {
                     const filename = `wallet_analysis_${addressMatch[0]}.txt`;
                     const fileContent = `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`;
                     
-                    await this.uploadFile({
+                    // Ensure fileContent is a string
+                    const fileContentString = String(fileContent);
+                    
+                    const uploadParams = {
                         workspaceId: action.workspace.id,
                         path: filename,
-                        file: fileContent,
+                        file: fileContentString,
                         taskIds: [task.id], // Associate with the task
                         skipSummarizer: true // Skip summarization to avoid extra processing
-                    });
+                    };
+                    
+                    console.log("uploadFile parameters:", uploadParams); // Log the parameters
+                    
+                    await this.uploadFile(uploadParams);
 
                     await this.completeTask({
                         workspaceId: action.workspace.id,
@@ -184,13 +198,20 @@ agent.doTask = async function(action) {
             const filename = `wallet_analysis_${addressMatch[0]}.txt`;
             const fileContent = `Analysis Results:\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`;
             
-            await this.uploadFile({
+            // Ensure fileContent is a string
+            const fileContentString = String(fileContent);
+            
+            const uploadParams = {
                 workspaceId: action.workspace.id,
                 path: filename,
-                file: fileContent,
+                file: fileContentString,
                 taskIds: [task.id], // Associate with the task
                 skipSummarizer: true // Skip summarization to avoid extra processing
-            });
+            };
+            
+            console.log("uploadFile parameters:", uploadParams); // Log the parameters
+            
+            await this.uploadFile(uploadParams);
 
             await this.completeTask({
                 workspaceId: action.workspace.id,
