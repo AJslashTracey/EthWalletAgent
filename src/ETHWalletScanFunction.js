@@ -143,7 +143,7 @@ async function summarizeTokenTransactions(walletAddress) {
     console.log("Updated transactions:", filteredTransactions);
 
     const gptResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
