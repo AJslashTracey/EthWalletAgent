@@ -200,11 +200,43 @@ agent.doTask = async function(action) {
                     console.log("[doTask] Processing address from human assistance:", addressMatch[0]);
                     const result = await summarizeTokenTransactions(addressMatch[0]);
                     
-                    await this.completeTask({
-                        workspaceId: action.workspace.id,
-                        taskId: task.id,
-                        output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
-                    });
+                    // Save analysis to file
+                    try {
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        const filename = `analysis_${addressMatch[0]}_${timestamp}.md`;
+                        console.log("[doTask] Saving analysis to file:", filename);
+
+                        const analysisReport = `# Wallet Analysis Report
+## Address: ${addressMatch[0]}
+## Date: ${new Date().toISOString()}
+
+${result.chatGPTResponse}
+
+## Links
+- [Detailed Transaction View](${result.overviewURL})`;
+
+                        await this.uploadFile({
+                            workspaceId: action.workspace.id,
+                            path: `reports/${filename}`,
+                            file: analysisReport,
+                            taskIds: [task.id],
+                            skipSummarizer: false
+                        });
+                        console.log("[doTask] Analysis file saved successfully");
+
+                        await this.completeTask({
+                            workspaceId: action.workspace.id,
+                            taskId: task.id,
+                            output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\n📄 [Analysis Report](reports/${filename})\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                        });
+                    } catch (fileError) {
+                        console.error("[doTask] Error saving analysis file:", fileError);
+                        await this.completeTask({
+                            workspaceId: action.workspace.id,
+                            taskId: task.id,
+                            output: `**Analysis Results:**\n\n${result.chatGPTResponse}\n\nNote: Failed to save analysis report.\n\n🔗 [View Detailed Transactions](${result.overviewURL})`
+                        });
+                    }
                     return;
                 }
             }
