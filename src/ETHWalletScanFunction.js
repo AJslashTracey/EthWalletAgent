@@ -128,7 +128,7 @@ async function summarizeTokenTransactions(walletAddress) {
     }
 
     const tokenData = await runApp(walletAddress);
-    console.log(tokenData)
+    console.log("TokenData:", tokenData)
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     console.log("Updated transactions:", updatedTransaction);
