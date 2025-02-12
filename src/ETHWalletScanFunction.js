@@ -158,6 +158,8 @@ async function summarizeTokenTransactions(walletAddress) {
       temperature: 0.3
     });
 
+    console.log(gptResponse.choices[0].message.content)
+
     return {
       chatGPTResponse: gptResponse.choices[0].message.content,
       overviewURL
