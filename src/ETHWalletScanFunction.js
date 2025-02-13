@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import Moralis from 'moralis';
 import { EvmChain } from '@moralisweb3/common-evm-utils';
 import fs from 'fs';
+import { json } from "express";
+
 
 export { summarizeTokenTransactions };
 
@@ -74,7 +76,7 @@ async function runApp(walletAddress) {
       security_score: token.security_score || "Not Available", 
     }));
 
-    console.log("Formatted Token Data:", tokenData);
+    
 
     const outputPath = "./tokens.json"; 
     fs.writeFileSync(outputPath, JSON.stringify(tokenData, null, 2));
@@ -120,10 +122,12 @@ async function summarizeTokenTransactions(walletAddress) {
     const simplifiedTx = transactions.slice(0, 10).map(tx => ({
       flow: tx.from.toLowerCase() === walletAddress ? 'outflow' : 'inflow',
       tokenName: tx.tokenName,
+      amount: parseFloat(tx.value) / Math.pow(10, parseInt(tx.tokenDecimal)), // Convert token amount
       timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
       transactionHash: tx.hash,
       contractAddress: tx.contractAddress
     }));
+    
 
     const updatedTransaction = [];
     for (const tx of simplifiedTx) {
@@ -140,14 +144,15 @@ async function summarizeTokenTransactions(walletAddress) {
     const filteredTransactions = updatedTransaction.filter(tx => heldTokens.has(tx.tokenName));
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    console.log("Updated transactions:", filteredTransactions);
+    console.log("Token Holding ", JSON.stringify(tokenData, null, 2));
+    console.log("Updated token transactions: ", updatedTransaction)
 
     const gptResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "Summarize token transactions: 1) Current token holdings 2) Tokens bought/sold in last 1/3/7 days. Use only tokens that appear in both holdings and transactions."
+          content: "Summarize token transactions: 1) Current token holdings all of them pls 2) Tokens bought/sold in last 1/3/7 days. Use only tokens that appear in both holdings and transactions."
         },
         {
           role: "user",
@@ -158,7 +163,7 @@ async function summarizeTokenTransactions(walletAddress) {
       temperature: 0.3
     });
 
-    console.log(gptResponse.choices[0].message.content)
+    console.log("GPT response: ", gptResponse.choices[0].message.content)
 
     return {
       chatGPTResponse: gptResponse.choices[0].message.content,
