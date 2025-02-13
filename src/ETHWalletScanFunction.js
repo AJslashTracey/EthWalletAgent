@@ -4,13 +4,12 @@ import dotenv from "dotenv";
 import Moralis from 'moralis';
 import { EvmChain } from '@moralisweb3/common-evm-utils';
 import fs from 'fs';
-import { json } from "express";
-
 
 export { summarizeTokenTransactions };
 
-dotenv.config(); 
+dotenv.config(); // Load environment variables
 
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const apiKeys = [
   process.env.ETHERSCAN_API_KEY1,
@@ -26,12 +25,9 @@ if (apiKeys.length === 0) {
 
 let apiIndex = 0;
 
+// Initialize Moralis once
 await Moralis.start({ apiKey: process.env.MORALIS_API_KEY });
 console.log("Moralis initialized.");
-
-async function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 async function getTokenBalance(walletAddress, contractAddress) {
   const apiKey = apiKeys[apiIndex];
@@ -42,7 +38,7 @@ async function getTokenBalance(walletAddress, contractAddress) {
   console.log(`Using API Key ${apiIndex + 1}: ${url}`);
 
   try {
-    await delay(1000); 
+    await delay(200); // Prevent hitting rate limits
     const response = await axios.get(url);
 
     if (response.data.status !== "1") {
@@ -78,7 +74,7 @@ async function runApp(walletAddress) {
       security_score: token.security_score || "Not Available", 
     }));
 
-    
+    console.log("Formatted Token Data:", tokenData);
 
     const outputPath = "./tokens.json"; 
     fs.writeFileSync(outputPath, JSON.stringify(tokenData, null, 2));
@@ -93,6 +89,7 @@ async function runApp(walletAddress) {
 
 async function summarizeTokenTransactions(walletAddress) {
   try {
+    // Normalize wallet address
     walletAddress = walletAddress.trim().toLowerCase();
     
     if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
@@ -123,12 +120,10 @@ async function summarizeTokenTransactions(walletAddress) {
     const simplifiedTx = transactions.slice(0, 10).map(tx => ({
       flow: tx.from.toLowerCase() === walletAddress ? 'outflow' : 'inflow',
       tokenName: tx.tokenName,
-      amount: parseFloat(tx.value) / Math.pow(10, parseInt(tx.tokenDecimal)), 
       timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
       transactionHash: tx.hash,
       contractAddress: tx.contractAddress
     }));
-    
 
     const updatedTransaction = [];
     for (const tx of simplifiedTx) {
@@ -140,19 +135,19 @@ async function summarizeTokenTransactions(walletAddress) {
 
     const tokenData = await runApp(walletAddress);
 
+    // Ensure that only tokens in both transactions & holdings are included
     const heldTokens = new Set(tokenData.map(t => t.name));
     const filteredTransactions = updatedTransaction.filter(tx => heldTokens.has(tx.tokenName));
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    console.log("Token Holding ", JSON.stringify(tokenData, null, 2));
-    console.log("Updated token transactions: ", updatedTransaction)
+    console.log("Updated transactions:", filteredTransactions);
 
     const gptResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "Summarize token transactions: 1) Current token holdings all of them pls 2) Tokens bought/sold in last 1/3/7 days. Point out token outflow inflow including amount"
+          content: "Summarize token transactions: 1) Current token holdings 2) Tokens bought/sold in last 1/3/7 days. Use only tokens that appear in both holdings and transactions."
         },
         {
           role: "user",
@@ -163,7 +158,7 @@ async function summarizeTokenTransactions(walletAddress) {
       temperature: 0.3
     });
 
-    console.log("GPT response: ", gptResponse.choices[0].message.content)
+    console.log(gptResponse.choices[0].message.content)
 
     return {
       chatGPTResponse: gptResponse.choices[0].message.content,
