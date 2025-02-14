@@ -154,7 +154,7 @@ async function summarizeTokenTransactions(walletAddress) {
           content: `Transactions: ${JSON.stringify(filteredTransactions, null, 2)}\nToken Data: ${JSON.stringify(tokenData, null, 2)}`
         }
       ],
-      max_tokens: 500,
+      max_tokens: 1500,
       temperature: 0.3
     });
 
