@@ -3,7 +3,6 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import { summarizeTokenTransactions } from './ETHWalletScanFunction.js';
 
-// Load environment variables
 dotenv.config();
 
 const requiredEnvVars = ['OPENSERV_API_KEY_', 'ETHERSCAN_API_KEY', 'OPENAI_API_KEY'];
@@ -32,7 +31,6 @@ agent.addCapability({
     }),
     async run({ args, action }, messages) {
         try {
-            // Check if this is a direct wallet analysis request or part of a conversation
             const isValidAddress = args.address.match(/^0x[a-fA-F0-9]{40}$/);
 
             if (!isValidAddress) {
@@ -55,15 +53,12 @@ agent.addCapability({
     }
 });
 
-// Handle chat responses
 agent.respondToChat = async function(action) {
     const lastMessage = action.messages[action.messages.length - 1].message.toLowerCase();
     
-    // Check if the message contains an ETH address
     const addressMatch = lastMessage.match(/0x[a-fA-F0-9]{40}/i);
     
     if (addressMatch) {
-        // If we found an ETH address, analyze it
         await this.handleToolRoute({
             params: { toolName: 'analyzeWallet' },
             body: { 
@@ -73,14 +68,12 @@ agent.respondToChat = async function(action) {
             }
         });
     } else if (lastMessage.includes('plan') || lastMessage.includes('analyze')) {
-        // If it's a planning request without an address
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
             message: "I'll help you analyze Ethereum wallet transactions. Please provide the Ethereum wallet address you'd like to analyze (it should start with 0x followed by 40 characters)."
         });
     } else {
-        // For any other message, ask for the address
         await this.sendChatMessage({
             workspaceId: action.workspace.id,
             agentId: action.me.id,
@@ -106,16 +99,14 @@ agent.doTask = async function(action) {
             status: 'in-progress'
         });
 
-        // First check for human assistance response with improved logging
         if (task.humanAssistanceRequests && task.humanAssistanceRequests.length > 0) {
             const lastRequest = task.humanAssistanceRequests[task.humanAssistanceRequests.length - 1];
             console.log("[doTask] Found last human assistance request:", {
                 requestId: lastRequest?.id,
                 status: lastRequest?.status,
-                humanResponse: lastRequest?.humanResponse // This is where the response actually is
+                humanResponse: lastRequest?.humanResponse 
             });
             
-            // The humanResponse is directly on the request object, not in response
             const responseText = lastRequest?.humanResponse;
             console.log("[doTask] Human assistance response text:", responseText);
             
@@ -141,7 +132,6 @@ agent.doTask = async function(action) {
             }
         }
 
-        // Then check task input
         let addressMatch;
         if (task.input) {
             addressMatch = task.input.match(/0x[a-fA-F0-9]{40}/i);
@@ -200,5 +190,5 @@ agent.start()
     })
     .catch(error => {
         console.error("Error starting agent:", error.message);
-        process.exit(1); // Exit on startup error
+        process.exit(1);
     });
