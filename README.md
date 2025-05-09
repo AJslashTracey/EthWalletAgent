@@ -1,6 +1,6 @@
-# Ethereum Wallet Analysis Agent
+# Ethereum Wallet Analysis Agent OPENSERV DEVNET Hackathon
 
-An AI-powered agent that analyzes Ethereum wallet transactions and provides detailed token movement summaries. Built with OpenServ SDK and leveraging Etherscan API.
+An AI-powered agent that analyzes Ethereum wallet transactions and provides detailed token movement summaries. Built with OpenServ SDK and leveraging Etherscan API. For 
 
 ## Features
 
